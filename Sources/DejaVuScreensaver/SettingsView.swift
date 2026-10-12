@@ -314,29 +314,37 @@ struct SettingsView: View {
             .controlSize(.large)
 
             if let reason = model.startDisabledReason {
-                Text("⚠️ \(reason)")
-                    .font(.callout.weight(.medium))
+                Label(reason, systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout.weight(.semibold))
                     .foregroundStyle(.orange)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
             }
 
             Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"))")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
-            Button {
-                isShowingFeedback = true
-            } label: {
-                Label("Feedback, feature request or bug report", systemImage: "bubble.left")
+            HStack(spacing: 20) {
+                Button {
+                    isShowingFeedback = true
+                } label: {
+                    Label("Feedback, feature request or bug report", systemImage: "bubble.left")
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the feedback form")
+
+                if let repositoryURL = URL(string: "https://github.com/DejaVuScreensaver/DejaVuScreensaver") {
+                    Link(destination: repositoryURL) {
+                        Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .accessibilityHint("Opens the feedback form")
 
             if let supportURL = URL(string: "https://ko-fi.com/feedpippopizza") {
                 Link(destination: supportURL) {
-                    Text("Enjoy the app? Feed me 🍕")
+                    Text("Enjoying the app? Please feed me 🍕")
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
