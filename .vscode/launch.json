@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "name": "Debug DejaVuScreensaver",
+            "target": "DejaVuScreensaver",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug DejaVuScreensaver"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "name": "Release DejaVuScreensaver",
+            "target": "DejaVuScreensaver",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release DejaVuScreensaver"
+        }
+    ]
+}
