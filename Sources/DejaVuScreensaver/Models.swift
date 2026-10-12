@@ -113,6 +113,7 @@ struct AppPreferences: Codable, Equatable {
     var showClock = false
     var clockPosition: ClockPosition = .topCenter
     var clockStyle: SlideshowClockStyle = .apple
+    var showClockBackground = false
     var showPhotoNumber = true
     var slideshowStyle: SlideshowStyle = .still
     var scaleMode: PhotoScaleMode = .fit
@@ -134,6 +135,7 @@ struct AppPreferences: Codable, Equatable {
         case showClock
         case clockPosition
         case clockStyle
+        case showClockBackground
         case showPhotoNumber
         case slideshowStyle
         case scaleMode
@@ -172,6 +174,7 @@ struct AppPreferences: Codable, Equatable {
         } else {
             clockStyle = savedClockStyle ?? .apple
         }
+        showClockBackground = try values.decodeIfPresent(Bool.self, forKey: .showClockBackground) ?? false
         showPhotoNumber = try values.decodeIfPresent(Bool.self, forKey: .showPhotoNumber) ?? true
         slideshowStyle = try values.decodeIfPresent(SlideshowStyle.self, forKey: .slideshowStyle) ?? .still
         scaleMode = try values.decodeIfPresent(PhotoScaleMode.self, forKey: .scaleMode) ?? .fit

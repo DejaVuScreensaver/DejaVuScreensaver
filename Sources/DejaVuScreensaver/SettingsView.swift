@@ -193,6 +193,10 @@ struct SettingsView: View {
                         }
                         .labelsHidden()
                     }
+                    Toggle(
+                        "Add background behind clock",
+                        isOn: preferenceBinding(\.showClockBackground)
+                    )
                     LabeledContent("Preview") {
                         clockPreview
                     }
@@ -343,21 +347,17 @@ struct SettingsView: View {
                 .monospacedDigit()
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.9), radius: 6)
-                .padding(.horizontal, preferences.value.clockStyle == .rounded ? 15 : 0)
-                .padding(.vertical, preferences.value.clockStyle == .rounded ? 7 : 0)
+                .padding(.horizontal, preferences.value.showClockBackground ? 15 : 0)
+                .padding(.vertical, preferences.value.showClockBackground ? 7 : 0)
                 .background {
-                    if preferences.value.clockStyle == .rounded {
+                    if preferences.value.showClockBackground {
                         Capsule().fill(.black.opacity(0.42))
                     }
                 }
         }
         .frame(width: 190, height: 76)
         .background(
-            LinearGradient(
-                colors: [.blue.opacity(0.55), .black.opacity(0.85)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
+            Color(white: 0.16),
             in: RoundedRectangle(cornerRadius: 12)
         )
         .accessibilityLabel("Clock style preview")

@@ -193,6 +193,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertFalse(preferences.showClock)
         XCTAssertEqual(preferences.clockPosition, .topCenter)
         XCTAssertEqual(preferences.clockStyle, .apple)
+        XCTAssertFalse(preferences.showClockBackground)
         XCTAssertTrue(preferences.showPhotoNumber)
         XCTAssertEqual(preferences.slideshowStyle, .still)
     }

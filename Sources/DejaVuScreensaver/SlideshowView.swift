@@ -85,10 +85,10 @@ struct SlideshowView: View {
                 .monospacedDigit()
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.9), radius: 12)
-                .padding(.horizontal, preferences.clockStyle == .rounded ? 24 : 0)
-                .padding(.vertical, preferences.clockStyle == .rounded ? 10 : 0)
+                .padding(.horizontal, preferences.showClockBackground ? 24 : 0)
+                .padding(.vertical, preferences.showClockBackground ? 10 : 0)
                 .background {
-                    if preferences.clockStyle == .rounded {
+                    if preferences.showClockBackground {
                         Capsule().fill(.black.opacity(0.42))
                     }
                 }
