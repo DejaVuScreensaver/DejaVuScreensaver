@@ -1,3 +1,4 @@
+import AppKit
 import Photos
 import ServiceManagement
 import SwiftUI
@@ -39,12 +40,21 @@ struct SettingsView: View {
 
     private var header: some View {
         HStack(spacing: 15) {
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 38))
-                .foregroundStyle(.tint)
-            VStack(alignment: .leading, spacing: 3) {
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 72, height: 72)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 6) {
                 Text("DejaVuScreensaver")
                     .font(.largeTitle.bold())
+                HStack(spacing: 5) {
+                    Text("Find it in the menu bar as")
+                    Image(systemName: "photo.on.rectangle")
+                        .accessibilityLabel("the DejaVuScreensaver menu bar icon")
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
             }
             Spacer()
         }
