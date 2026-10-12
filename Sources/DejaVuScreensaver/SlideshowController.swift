@@ -95,6 +95,10 @@ final class SlideshowController: ObservableObject {
         isExitControlVisible = true
     }
 
+    func hideExitControl() {
+        isExitControlVisible = false
+    }
+
     private func advanceAutomatically() {
         guard let index = sequence.next() else { return }
         show(index: index, deliveryMode: .highQualityFormat)

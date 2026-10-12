@@ -58,6 +58,22 @@ enum SlideshowClockStyle: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum SlideshowClockSize: String, Codable, CaseIterable, Identifiable {
+    case small
+    case medium
+    case large
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+    var multiplier: CGFloat {
+        switch self {
+        case .small: 0.75
+        case .medium: 1
+        case .large: 1.3
+        }
+    }
+}
+
 enum SmartFilterMatch: String, Codable, CaseIterable, Identifiable {
     case all
     case any
@@ -113,6 +129,7 @@ struct AppPreferences: Codable, Equatable {
     var showClock = false
     var clockPosition: ClockPosition = .topCenter
     var clockStyle: SlideshowClockStyle = .apple
+    var clockSize: SlideshowClockSize = .medium
     var showClockBackground = false
     var showPhotoNumber = true
     var slideshowStyle: SlideshowStyle = .still
@@ -135,6 +152,7 @@ struct AppPreferences: Codable, Equatable {
         case showClock
         case clockPosition
         case clockStyle
+        case clockSize
         case showClockBackground
         case showPhotoNumber
         case slideshowStyle
@@ -174,6 +192,7 @@ struct AppPreferences: Codable, Equatable {
         } else {
             clockStyle = savedClockStyle ?? .apple
         }
+        clockSize = try values.decodeIfPresent(SlideshowClockSize.self, forKey: .clockSize) ?? .medium
         showClockBackground = try values.decodeIfPresent(Bool.self, forKey: .showClockBackground) ?? false
         showPhotoNumber = try values.decodeIfPresent(Bool.self, forKey: .showPhotoNumber) ?? true
         slideshowStyle = try values.decodeIfPresent(SlideshowStyle.self, forKey: .slideshowStyle) ?? .still

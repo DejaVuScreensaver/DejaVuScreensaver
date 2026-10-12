@@ -9,6 +9,7 @@ final class SlideshowPresentation {
     private var screenObserver: NSObjectProtocol?
     private var previousPresentationOptions: NSApplication.PresentationOptions = []
     private var cursorHidden = false
+    private var hideExitControlsTask: Task<Void, Never>?
     private var ignoreMouseUntil = Date.distantPast
     private var accumulatedMouseMovement: Double = 0
     private var movementThreshold: Double = 18
@@ -76,6 +77,9 @@ final class SlideshowPresentation {
         NSCursor.hide()
         cursorHidden = true
         installMonitors()
+        if stayOpenUntilEnded {
+            revealExitControls()
+        }
     }
 
     func stop() {
@@ -83,6 +87,8 @@ final class SlideshowPresentation {
             NSEvent.removeMonitor(localEventMonitor)
         }
         localEventMonitor = nil
+        hideExitControlsTask?.cancel()
+        hideExitControlsTask = nil
 
         if let resignObserver {
             NotificationCenter.default.removeObserver(resignObserver)
@@ -148,6 +154,10 @@ final class SlideshowPresentation {
     }
 
     private func handle(_ event: NSEvent) -> NSEvent? {
+        if stayOpenUntilEnded {
+            revealExitControls()
+        }
+
         switch event.type {
         case .keyDown:
             applyInputDecision(SlideshowInputPolicy.keyDown(
@@ -180,11 +190,6 @@ final class SlideshowPresentation {
 
         case .mouseMoved:
             if stayOpenUntilEnded {
-                controller?.showExitControl()
-                if cursorHidden {
-                    NSCursor.unhide()
-                    cursorHidden = false
-                }
                 return event
             }
             guard Date() >= ignoreMouseUntil else { return nil }
@@ -196,6 +201,24 @@ final class SlideshowPresentation {
 
         default:
             return event
+        }
+    }
+
+    private func revealExitControls() {
+        controller?.showExitControl()
+        if cursorHidden {
+            NSCursor.unhide()
+            cursorHidden = false
+        }
+        hideExitControlsTask?.cancel()
+        hideExitControlsTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.controller?.hideExitControl()
+            if self?.cursorHidden == false {
+                NSCursor.hide()
+                self?.cursorHidden = true
+            }
         }
     }
 

@@ -175,26 +175,34 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Toggle("Show large clock", isOn: preferenceBinding(\.showClock))
+                Toggle("Show current time", isOn: preferenceBinding(\.showClock))
                 if preferences.value.showClock {
-                    LabeledContent("Clock position") {
-                        Picker("Clock position", selection: clockPositionBinding) {
+                    LabeledContent("Position") {
+                        Picker("Current time position", selection: clockPositionBinding) {
                             ForEach(ClockPosition.allCases) { position in
                                 Text(position.title).tag(position)
                             }
                         }
                         .labelsHidden()
                     }
-                    LabeledContent("Clock style") {
-                        Picker("Clock style", selection: clockStyleBinding) {
+                    LabeledContent("Font") {
+                        Picker("Current time font", selection: clockStyleBinding) {
                             ForEach(SlideshowClockStyle.allCases) { style in
                                 Text(style.title).tag(style)
                             }
                         }
                         .labelsHidden()
                     }
+                    LabeledContent("Size") {
+                        Picker("Current time size", selection: preferenceBinding(\.clockSize)) {
+                            ForEach(SlideshowClockSize.allCases) { size in
+                                Text(size.title).tag(size)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
                     Toggle(
-                        "Add background behind clock",
+                        "Add background behind time",
                         isOn: preferenceBinding(\.showClockBackground)
                     )
                     LabeledContent("Preview") {
@@ -351,7 +359,9 @@ struct SettingsView: View {
     private var clockPreview: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             Text(context.date.formatted(date: .omitted, time: .shortened))
-                .font(preferences.value.clockStyle.font(size: 34))
+                .font(preferences.value.clockStyle.font(
+                    size: 34 * preferences.value.clockSize.multiplier
+                ))
                 .monospacedDigit()
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.9), radius: 6)
@@ -368,7 +378,7 @@ struct SettingsView: View {
             Color(white: 0.16),
             in: RoundedRectangle(cornerRadius: 12)
         )
-        .accessibilityLabel("Clock style preview")
+        .accessibilityLabel("Current time preview")
     }
 
     private var photoSourceTitle: String {
@@ -467,7 +477,9 @@ struct SettingsView: View {
         )
     }
 
-    private func preferenceBinding(_ keyPath: WritableKeyPath<AppPreferences, Bool>) -> Binding<Bool> {
+    private func preferenceBinding<Value>(
+        _ keyPath: WritableKeyPath<AppPreferences, Value>
+    ) -> Binding<Value> {
         Binding(
             get: { preferences.value[keyPath: keyPath] },
             set: { preferences.value[keyPath: keyPath] = $0 }

@@ -44,10 +44,15 @@ struct SlideshowView: View {
                 if preferences.stayOpenUntilEnded, controller.isExitControlVisible {
                     VStack {
                         HStack {
-                            Spacer()
+                            if preferences.clockPosition != .topTrailing {
+                                Spacer()
+                            }
                             Button("End Slideshow", action: onEnd)
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.large)
+                            if preferences.clockPosition == .topTrailing {
+                                Spacer()
+                            }
                         }
                         Spacer()
                     }
@@ -81,7 +86,9 @@ struct SlideshowView: View {
     private func clockOverlay(for size: CGSize) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             Text(context.date.formatted(date: .omitted, time: .shortened))
-                .font(preferences.clockStyle.font(size: min(140, max(64, size.width * 0.1))))
+                .font(preferences.clockStyle.font(
+                    size: min(140, max(64, size.width * 0.1)) * preferences.clockSize.multiplier
+                ))
                 .monospacedDigit()
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.9), radius: 12)
