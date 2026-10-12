@@ -4,7 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="${0:A:h}"
 PROJECT_DIR="${SCRIPT_DIR:h}"
 OUTPUT_DIR="${PROJECT_DIR}/build"
-DMG_PATH="${OUTPUT_DIR}/DejaVuScreensaver.dmg"
+DMG_NAME="DejaVuScreensaver.dmg"
+DMG_PATH="${OUTPUT_DIR}/${DMG_NAME}"
 STAGING_DIR="$(mktemp -d "${TMPDIR%/}/DejaVuScreensaver.XXXXXX")"
 
 trap 'rm -rf "${STAGING_DIR}"' EXIT
@@ -20,5 +21,5 @@ hdiutil create \
   -ov \
   "${DMG_PATH}"
 
-shasum -a 256 "${DMG_PATH}" > "${DMG_PATH}.sha256"
+(cd "${OUTPUT_DIR}" && shasum -a 256 "${DMG_NAME}" > "${DMG_NAME}.sha256")
 echo "Packaged ${DMG_PATH}"
