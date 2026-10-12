@@ -25,22 +25,7 @@ struct SlideshowView: View {
                 }
 
                 if preferences.showClock {
-                    VStack {
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
-                            Text(context.date.formatted(date: .omitted, time: .shortened))
-                                .font(.system(
-                                    size: min(140, max(64, geometry.size.width * 0.1)),
-                                    weight: .semibold,
-                                    design: .rounded
-                                ))
-                                .monospacedDigit()
-                                .foregroundStyle(.white)
-                                .shadow(color: .black.opacity(0.9), radius: 12)
-                                .accessibilityLabel("Current time")
-                        }
-                        Spacer()
-                    }
-                    .padding(.top, 54)
+                    clockOverlay(for: geometry.size)
                 }
 
                 if let metadata = controller.metadata {
@@ -93,6 +78,50 @@ struct SlideshowView: View {
         .animation(.easeInOut(duration: 0.45), value: controller.currentAssetID)
     }
 
+    private func clockOverlay(for size: CGSize) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            Text(context.date.formatted(date: .omitted, time: .shortened))
+                .font(clockFont(for: size))
+                .monospacedDigit()
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.9), radius: 12)
+                .padding(.horizontal, preferences.clockStyle == .rounded ? 24 : 0)
+                .padding(.vertical, preferences.clockStyle == .rounded ? 10 : 0)
+                .background {
+                    if preferences.clockStyle == .rounded {
+                        Capsule().fill(.black.opacity(0.42))
+                    }
+                }
+                .accessibilityLabel("Current time")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: clockAlignment)
+        .padding(.horizontal, 54)
+        .padding(.vertical, preferences.clockPosition.isBottom ? 100 : 54)
+    }
+
+    private func clockFont(for size: CGSize) -> Font {
+        let baseSize = min(140, max(64, size.width * 0.1))
+        switch preferences.clockStyle {
+        case .rounded:
+            return .system(size: baseSize, weight: .semibold, design: .rounded)
+        case .classic:
+            return .system(size: baseSize, weight: .medium, design: .serif)
+        case .digital:
+            return .system(size: baseSize * 0.85, weight: .regular, design: .monospaced)
+        }
+    }
+
+    private var clockAlignment: Alignment {
+        switch preferences.clockPosition {
+        case .topLeading: .topLeading
+        case .topCenter: .top
+        case .topTrailing: .topTrailing
+        case .bottomLeading: .bottomLeading
+        case .bottomCenter: .bottom
+        case .bottomTrailing: .bottomTrailing
+        }
+    }
+
     @ViewBuilder
     private func metadataOverlay(_ metadata: PhotoMetadata) -> some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -116,13 +145,24 @@ struct SlideshowView: View {
     private var playbackStatus: some View {
         HStack(spacing: 10) {
             Image(systemName: controller.isPaused ? "pause.fill" : "play.fill")
-            Text("\(controller.currentPosition) / \(controller.assetCount)")
+            if preferences.showPhotoNumber {
+                Text("\(controller.currentPosition) / \(controller.assetCount)")
+            }
         }
         .font(.system(size: 14, weight: .semibold, design: .rounded))
         .foregroundStyle(.white)
         .padding(.horizontal, 13)
         .padding(.vertical, 9)
         .background(.black.opacity(0.52), in: Capsule())
+    }
+}
+
+private extension ClockPosition {
+    var isBottom: Bool {
+        switch self {
+        case .topLeading, .topCenter, .topTrailing: false
+        case .bottomLeading, .bottomCenter, .bottomTrailing: true
+        }
     }
 }
 

@@ -16,6 +16,36 @@ enum SlideshowStyle: String, Codable, CaseIterable, Identifiable {
     var title: String { self == .still ? "Static" : "Ken Burns" }
 }
 
+enum ClockPosition: String, Codable, CaseIterable, Identifiable {
+    case topLeading
+    case topCenter
+    case topTrailing
+    case bottomLeading
+    case bottomCenter
+    case bottomTrailing
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .topLeading: "Top left"
+        case .topCenter: "Top center"
+        case .topTrailing: "Top right"
+        case .bottomLeading: "Bottom left"
+        case .bottomCenter: "Bottom center"
+        case .bottomTrailing: "Bottom right"
+        }
+    }
+}
+
+enum SlideshowClockStyle: String, Codable, CaseIterable, Identifiable {
+    case rounded
+    case classic
+    case digital
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+}
+
 struct AppPreferences: Codable, Equatable {
     private var preferencesVersion = 3
     var selectedAlbumIDs: Set<String> = []
@@ -27,6 +57,9 @@ struct AppPreferences: Codable, Equatable {
     var showLocation = true
     var showFilename = true
     var showClock = false
+    var clockPosition: ClockPosition = .topCenter
+    var clockStyle: SlideshowClockStyle = .rounded
+    var showPhotoNumber = true
     var slideshowStyle: SlideshowStyle = .still
     var scaleMode: PhotoScaleMode = .fit
     var mouseMovementThreshold: Double = 18
@@ -44,6 +77,9 @@ struct AppPreferences: Codable, Equatable {
         case showLocation
         case showFilename
         case showClock
+        case clockPosition
+        case clockStyle
+        case showPhotoNumber
         case slideshowStyle
         case scaleMode
         case mouseMovementThreshold
@@ -71,6 +107,9 @@ struct AppPreferences: Codable, Equatable {
         showLocation = try values.decodeIfPresent(Bool.self, forKey: .showLocation) ?? true
         showFilename = try values.decodeIfPresent(Bool.self, forKey: .showFilename) ?? true
         showClock = try values.decodeIfPresent(Bool.self, forKey: .showClock) ?? false
+        clockPosition = try values.decodeIfPresent(ClockPosition.self, forKey: .clockPosition) ?? .topCenter
+        clockStyle = try values.decodeIfPresent(SlideshowClockStyle.self, forKey: .clockStyle) ?? .rounded
+        showPhotoNumber = try values.decodeIfPresent(Bool.self, forKey: .showPhotoNumber) ?? true
         slideshowStyle = try values.decodeIfPresent(SlideshowStyle.self, forKey: .slideshowStyle) ?? .still
         scaleMode = try values.decodeIfPresent(PhotoScaleMode.self, forKey: .scaleMode) ?? .fit
         mouseMovementThreshold = try values.decodeIfPresent(Double.self, forKey: .mouseMovementThreshold) ?? 18

@@ -139,9 +139,28 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
 
                 Toggle("Show large clock", isOn: preferenceBinding(\.showClock))
+                if preferences.value.showClock {
+                    LabeledContent("Clock position") {
+                        Picker("Clock position", selection: clockPositionBinding) {
+                            ForEach(ClockPosition.allCases) { position in
+                                Text(position.title).tag(position)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                    LabeledContent("Clock style") {
+                        Picker("Clock style", selection: clockStyleBinding) {
+                            ForEach(SlideshowClockStyle.allCases) { style in
+                                Text(style.title).tag(style)
+                            }
+                        }
+                        .labelsHidden()
+                    }
+                }
                 Toggle("Show capture date", isOn: preferenceBinding(\.showCaptureDate))
                 Toggle("Show location", isOn: preferenceBinding(\.showLocation))
                 Toggle("Show filename", isOn: preferenceBinding(\.showFilename))
+                Toggle("Show photo number", isOn: preferenceBinding(\.showPhotoNumber))
                 Text("Photos are shuffled without immediate repeats. ← goes back through actual history; → advances; Space pauses or resumes.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -331,6 +350,20 @@ struct SettingsView: View {
         Binding(
             get: { preferences.value.slideshowStyle },
             set: { preferences.value.slideshowStyle = $0 }
+        )
+    }
+
+    private var clockPositionBinding: Binding<ClockPosition> {
+        Binding(
+            get: { preferences.value.clockPosition },
+            set: { preferences.value.clockPosition = $0 }
+        )
+    }
+
+    private var clockStyleBinding: Binding<SlideshowClockStyle> {
+        Binding(
+            get: { preferences.value.clockStyle },
+            set: { preferences.value.clockStyle = $0 }
         )
     }
 

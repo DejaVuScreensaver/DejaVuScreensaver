@@ -191,6 +191,9 @@ final class AppPreferencesTests: XCTestCase {
         let preferences = AppPreferences()
 
         XCTAssertFalse(preferences.showClock)
+        XCTAssertEqual(preferences.clockPosition, .topCenter)
+        XCTAssertEqual(preferences.clockStyle, .rounded)
+        XCTAssertTrue(preferences.showPhotoNumber)
         XCTAssertEqual(preferences.slideshowStyle, .still)
     }
 
