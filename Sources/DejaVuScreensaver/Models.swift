@@ -38,12 +38,24 @@ enum ClockPosition: String, Codable, CaseIterable, Identifiable {
 }
 
 enum SlideshowClockStyle: String, Codable, CaseIterable, Identifiable {
+    case apple
+    case appleLight
     case rounded
+    // Legacy values kept only to decode preferences from older builds.
     case classic
     case digital
 
     var id: String { rawValue }
-    var title: String { rawValue.capitalized }
+    static var allCases: [SlideshowClockStyle] { [.apple, .appleLight, .rounded] }
+
+    var title: String {
+        switch self {
+        case .apple: "Apple (SF Pro)"
+        case .appleLight: "Apple Light"
+        case .rounded: "Rounded"
+        case .classic, .digital: "Apple (SF Pro)"
+        }
+    }
 }
 
 enum SmartFilterMatch: String, Codable, CaseIterable, Identifiable {
@@ -88,7 +100,7 @@ struct SmartPhotoFilter: Codable, Equatable {
 }
 
 struct AppPreferences: Codable, Equatable {
-    private var preferencesVersion = 4
+    private var preferencesVersion = 6
     var selectedAlbumIDs: Set<String> = []
     var smartFilter = SmartPhotoFilter()
     var intervalSeconds: Double = 5
@@ -100,7 +112,7 @@ struct AppPreferences: Codable, Equatable {
     var showFilename = true
     var showClock = false
     var clockPosition: ClockPosition = .topCenter
-    var clockStyle: SlideshowClockStyle = .rounded
+    var clockStyle: SlideshowClockStyle = .apple
     var showPhotoNumber = true
     var slideshowStyle: SlideshowStyle = .still
     var scaleMode: PhotoScaleMode = .fit
@@ -135,7 +147,7 @@ struct AppPreferences: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let savedVersion = try values.decodeIfPresent(Int.self, forKey: .preferencesVersion) ?? 1
-        preferencesVersion = 4
+        preferencesVersion = 6
         selectedAlbumIDs = try values.decodeIfPresent(Set<String>.self, forKey: .selectedAlbumIDs) ?? []
         smartFilter = try values.decodeIfPresent(SmartPhotoFilter.self, forKey: .smartFilter) ?? SmartPhotoFilter()
         let savedInterval = try values.decodeIfPresent(Double.self, forKey: .intervalSeconds) ?? 5
@@ -152,7 +164,14 @@ struct AppPreferences: Codable, Equatable {
         showFilename = try values.decodeIfPresent(Bool.self, forKey: .showFilename) ?? true
         showClock = try values.decodeIfPresent(Bool.self, forKey: .showClock) ?? false
         clockPosition = try values.decodeIfPresent(ClockPosition.self, forKey: .clockPosition) ?? .topCenter
-        clockStyle = try values.decodeIfPresent(SlideshowClockStyle.self, forKey: .clockStyle) ?? .rounded
+        let savedClockStyle = try values.decodeIfPresent(SlideshowClockStyle.self, forKey: .clockStyle)
+        if savedClockStyle == .classic
+            || savedClockStyle == .digital
+            || (savedVersion < 5 && savedClockStyle == .rounded) {
+            clockStyle = .apple
+        } else {
+            clockStyle = savedClockStyle ?? .apple
+        }
         showPhotoNumber = try values.decodeIfPresent(Bool.self, forKey: .showPhotoNumber) ?? true
         slideshowStyle = try values.decodeIfPresent(SlideshowStyle.self, forKey: .slideshowStyle) ?? .still
         scaleMode = try values.decodeIfPresent(PhotoScaleMode.self, forKey: .scaleMode) ?? .fit

@@ -81,7 +81,7 @@ struct SlideshowView: View {
     private func clockOverlay(for size: CGSize) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             Text(context.date.formatted(date: .omitted, time: .shortened))
-                .font(clockFont(for: size))
+                .font(preferences.clockStyle.font(size: min(140, max(64, size.width * 0.1))))
                 .monospacedDigit()
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.9), radius: 12)
@@ -97,18 +97,6 @@ struct SlideshowView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: clockAlignment)
         .padding(.horizontal, 54)
         .padding(.vertical, preferences.clockPosition.isBottom ? 100 : 54)
-    }
-
-    private func clockFont(for size: CGSize) -> Font {
-        let baseSize = min(140, max(64, size.width * 0.1))
-        switch preferences.clockStyle {
-        case .rounded:
-            return .system(size: baseSize, weight: .semibold, design: .rounded)
-        case .classic:
-            return .system(size: baseSize, weight: .medium, design: .serif)
-        case .digital:
-            return .system(size: baseSize * 0.85, weight: .regular, design: .monospaced)
-        }
     }
 
     private var clockAlignment: Alignment {
@@ -154,6 +142,21 @@ struct SlideshowView: View {
         .padding(.horizontal, 13)
         .padding(.vertical, 9)
         .background(.black.opacity(0.52), in: Capsule())
+    }
+}
+
+extension SlideshowClockStyle {
+    func font(size: CGFloat) -> Font {
+        switch self {
+        case .apple:
+            return .system(size: size, weight: .semibold)
+        case .appleLight:
+            return .system(size: size, weight: .light)
+        case .rounded:
+            return .system(size: size, weight: .semibold, design: .rounded)
+        case .classic, .digital:
+            return .system(size: size, weight: .semibold)
+        }
     }
 }
 

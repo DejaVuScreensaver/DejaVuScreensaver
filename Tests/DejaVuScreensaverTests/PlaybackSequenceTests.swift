@@ -192,7 +192,7 @@ final class AppPreferencesTests: XCTestCase {
 
         XCTAssertFalse(preferences.showClock)
         XCTAssertEqual(preferences.clockPosition, .topCenter)
-        XCTAssertEqual(preferences.clockStyle, .rounded)
+        XCTAssertEqual(preferences.clockStyle, .apple)
         XCTAssertTrue(preferences.showPhotoNumber)
         XCTAssertEqual(preferences.slideshowStyle, .still)
     }
@@ -202,6 +202,29 @@ final class AppPreferencesTests: XCTestCase {
         let decoded = try JSONDecoder().decode(AppPreferences.self, from: savedPreferences)
 
         XCTAssertEqual(decoded.intervalSeconds, 30)
+    }
+
+    func testPreviousRoundedDefaultMigratesToAppleFont() throws {
+        let savedPreferences = Data(#"{"preferencesVersion":4,"clockStyle":"rounded"}"#.utf8)
+        let decoded = try JSONDecoder().decode(AppPreferences.self, from: savedPreferences)
+
+        XCTAssertEqual(decoded.clockStyle, .apple)
+    }
+
+    func testPreviousClassicClockStyleMigratesToAppleFont() throws {
+        let savedPreferences = Data(#"{"preferencesVersion":4,"clockStyle":"classic"}"#.utf8)
+        let decoded = try JSONDecoder().decode(AppPreferences.self, from: savedPreferences)
+
+        XCTAssertEqual(decoded.clockStyle, .apple)
+        XCTAssertFalse(SlideshowClockStyle.allCases.contains(.classic))
+    }
+
+    func testPreviousDigitalClockStyleMigratesToAppleFont() throws {
+        let savedPreferences = Data(#"{"preferencesVersion":5,"clockStyle":"digital"}"#.utf8)
+        let decoded = try JSONDecoder().decode(AppPreferences.self, from: savedPreferences)
+
+        XCTAssertEqual(decoded.clockStyle, .apple)
+        XCTAssertFalse(SlideshowClockStyle.allCases.contains(.digital))
     }
 
     func testSmartFilterMatchesAllOrAnyEnabledConditions() {

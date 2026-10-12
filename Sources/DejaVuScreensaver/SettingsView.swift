@@ -193,6 +193,9 @@ struct SettingsView: View {
                         }
                         .labelsHidden()
                     }
+                    LabeledContent("Preview") {
+                        clockPreview
+                    }
                 }
                 Toggle("Show capture date", isOn: preferenceBinding(\.showCaptureDate))
                 Toggle("Show location", isOn: preferenceBinding(\.showLocation))
@@ -248,10 +251,15 @@ struct SettingsView: View {
 
                 if !preferences.value.stayOpenUntilEnded {
                     Label(
-                        model.lockService.isAvailable ? "Can open the macOS Lock Screen" : "Cannot open the macOS Lock Screen on this Mac",
+                        model.lockService.isAvailable ? "Automatic Mac locking is available" : "Automatic Mac locking is unavailable",
                         systemImage: model.lockService.isAvailable ? "lock.shield.fill" : "lock.trianglebadge.exclamationmark"
                     )
                     .foregroundStyle(model.lockService.isAvailable ? .green : .red)
+                    Text(model.lockService.isAvailable
+                         ? "When enabled below, leaving the screensaver opens the real macOS Lock Screen."
+                         : "DejaVuScreensaver can close, but it cannot automatically lock this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Toggle(
                         "Lock Mac when leaving the slideshow",
                         isOn: preferenceBinding(\.lockOnDisallowedKey)
@@ -326,6 +334,33 @@ struct SettingsView: View {
         case .notDetermined: "Photos access required"
         @unknown default: "Unknown Photos access state"
         }
+    }
+
+    private var clockPreview: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            Text(context.date.formatted(date: .omitted, time: .shortened))
+                .font(preferences.value.clockStyle.font(size: 34))
+                .monospacedDigit()
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.9), radius: 6)
+                .padding(.horizontal, preferences.value.clockStyle == .rounded ? 15 : 0)
+                .padding(.vertical, preferences.value.clockStyle == .rounded ? 7 : 0)
+                .background {
+                    if preferences.value.clockStyle == .rounded {
+                        Capsule().fill(.black.opacity(0.42))
+                    }
+                }
+        }
+        .frame(width: 190, height: 76)
+        .background(
+            LinearGradient(
+                colors: [.blue.opacity(0.55), .black.opacity(0.85)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .accessibilityLabel("Clock style preview")
     }
 
     private var photoSourceTitle: String {
