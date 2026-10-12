@@ -8,7 +8,7 @@ struct SettingsView: View {
     @ObservedObject private var preferences: PreferencesStore
     @ObservedObject private var photoLibrary: PhotoLibraryService
     @ObservedObject private var viewingHistory: ViewingHistoryStore
-    @State private var albumSearch = ""
+    @State private var isShowingAlbumPicker = false
     @State private var isShowingFeedback = false
     let onShowHistory: () -> Void
 
@@ -36,6 +36,9 @@ struct SettingsView: View {
         .frame(minWidth: 620, idealWidth: 680, minHeight: 680, idealHeight: 760)
         .sheet(isPresented: $isShowingFeedback) {
             FeedbackView()
+        }
+        .sheet(isPresented: $isShowingAlbumPicker) {
+            AlbumPickerView(model: model)
         }
     }
 
@@ -77,32 +80,26 @@ struct SettingsView: View {
                 }
 
                 if photoLibrary.canReadLibrary {
-                    TextField("Filter albums", text: $albumSearch)
-                        .textFieldStyle(.roundedBorder)
-
-                    ScrollView {
-                        LazyVStack(spacing: 2) {
-                            albumRow(
-                                title: "All Photos",
-                                subtitle: "Entire Photos library",
-                                selected: preferences.value.selectedAlbumIDs.isEmpty
-                            ) { model.useAllPhotos() }
-
-                            ForEach(filteredAlbums) { album in
-                                albumRow(
-                                    title: album.title,
-                                    subtitle: album.kind == .user ? "Album" : "Built-in Smart Album",
-                                    selected: preferences.value.selectedAlbumIDs.contains(album.id)
-                                ) { model.toggleAlbum(album.id) }
-                            }
+                    HStack(spacing: 14) {
+                        Image(systemName: preferences.value.selectedAlbumIDs.isEmpty ? "photo.stack.fill" : "rectangle.stack.fill")
+                            .font(.title2)
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 34)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(photoSourceTitle)
+                                .font(.headline)
+                            Text(photoSourceSubtitle)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        Spacer()
+                        Button("Choose Albums…") {
+                            isShowingAlbumPicker = true
                         }
                     }
-                    .frame(height: 190)
-                    .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
-
-                    Text(preferences.value.selectedAlbumIDs.isEmpty ? "Using All Photos" : "\(preferences.value.selectedAlbumIDs.count) album(s) selected; duplicates are removed")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .padding(12)
+                    .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
                 }
             }
             .padding(10)
@@ -200,7 +197,7 @@ struct SettingsView: View {
                 Toggle("Show capture date", isOn: preferenceBinding(\.showCaptureDate))
                 Toggle("Show location", isOn: preferenceBinding(\.showLocation))
                 Toggle("Show filename", isOn: preferenceBinding(\.showFilename))
-                Toggle("Show photo number", isOn: preferenceBinding(\.showPhotoNumber))
+                Toggle("Show photo number and total", isOn: preferenceBinding(\.showPhotoNumber))
                 Text("Photos are shuffled without immediate repeats. ← goes back through actual history; → advances; Space pauses or resumes.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -331,34 +328,19 @@ struct SettingsView: View {
         }
     }
 
-    private var filteredAlbums: [AlbumSource] {
-        guard !albumSearch.isEmpty else { return photoLibrary.albums }
-        return photoLibrary.albums.filter {
-            $0.title.localizedCaseInsensitiveContains(albumSearch)
-        }
+    private var photoSourceTitle: String {
+        let count = preferences.value.selectedAlbumIDs.count
+        return count == 0 ? "All Photos" : "\(count) album\(count == 1 ? "" : "s") selected"
     }
 
-    private func albumRow(
-        title: String,
-        subtitle: String,
-        selected: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack {
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? Color.accentColor : .secondary)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title).foregroundStyle(.primary)
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
+    private var photoSourceSubtitle: String {
+        guard !preferences.value.selectedAlbumIDs.isEmpty else {
+            return "Entire Photos library"
         }
-        .buttonStyle(.plain)
+        let names = photoLibrary.albums
+            .filter { preferences.value.selectedAlbumIDs.contains($0.id) }
+            .map(\.title)
+        return names.isEmpty ? "Duplicates are removed automatically" : names.joined(separator: ", ")
     }
 
     private var intervalBinding: Binding<Double> {
@@ -447,5 +429,180 @@ struct SettingsView: View {
             get: { preferences.value[keyPath: keyPath] },
             set: { preferences.value[keyPath: keyPath] = $0 }
         )
+    }
+}
+
+private struct AlbumPickerView: View {
+    @ObservedObject private var preferences: PreferencesStore
+    @ObservedObject private var photoLibrary: PhotoLibraryService
+    @Environment(\.dismiss) private var dismiss
+    @State private var search = ""
+    let model: AppModel
+
+    init(model: AppModel) {
+        self.model = model
+        preferences = model.preferences
+        photoLibrary = model.photoLibrary
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Choose Photo Sources")
+                    .font(.title2.bold())
+                Text(selectionSummary)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
+
+            Divider()
+
+            VStack(spacing: 16) {
+                HStack(spacing: 9) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search albums", text: $search)
+                        .textFieldStyle(.plain)
+                    if !search.isEmpty {
+                        Button {
+                            search = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 9))
+
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        albumRow(
+                            title: "All Photos",
+                            subtitle: "Entire Photos library",
+                            systemImage: "photo.stack",
+                            selected: preferences.value.selectedAlbumIDs.isEmpty,
+                            action: model.useAllPhotos
+                        )
+
+                        if !userAlbums.isEmpty {
+                            albumSection("Albums", albums: userAlbums)
+                        }
+                        if !smartAlbums.isEmpty {
+                            albumSection("Built-in Smart Albums", albums: smartAlbums)
+                        }
+                        if filteredAlbums.isEmpty {
+                            ContentUnavailableView.search(text: search)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 40)
+                        }
+                    }
+                    .padding(2)
+                }
+                .frame(maxHeight: .infinity)
+            }
+            .padding(20)
+
+            Divider()
+
+            HStack {
+                Button {
+                    photoLibrary.refreshAlbums()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                Spacer()
+                Text("Changes are saved automatically")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Done") { dismiss() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(20)
+        }
+        .frame(minWidth: 600, idealWidth: 660, minHeight: 620, idealHeight: 720)
+    }
+
+    private var filteredAlbums: [AlbumSource] {
+        guard !search.isEmpty else { return photoLibrary.albums }
+        return photoLibrary.albums.filter {
+            $0.title.localizedCaseInsensitiveContains(search)
+        }
+    }
+
+    private var userAlbums: [AlbumSource] {
+        filteredAlbums.filter { $0.kind == .user }
+    }
+
+    private var smartAlbums: [AlbumSource] {
+        filteredAlbums.filter { $0.kind == .smart }
+    }
+
+    private var selectionSummary: String {
+        let count = preferences.value.selectedAlbumIDs.count
+        return count == 0
+            ? "Using every photo in your library"
+            : "\(count) album\(count == 1 ? "" : "s") selected · duplicates are removed"
+    }
+
+    private func albumSection(_ title: String, albums: [AlbumSource]) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title.uppercased())
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+            ForEach(albums) { album in
+                albumRow(
+                    title: album.title,
+                    subtitle: album.kind == .user ? "Album" : "Provided by Photos",
+                    systemImage: album.kind == .user ? "rectangle.stack" : "gearshape",
+                    selected: preferences.value.selectedAlbumIDs.contains(album.id)
+                ) { model.toggleAlbum(album.id) }
+            }
+        }
+    }
+
+    private func albumRow(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(selected ? Color.accentColor : .secondary)
+                Image(systemName: systemImage)
+                    .frame(width: 24)
+                    .foregroundStyle(selected ? Color.accentColor : .secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(12)
+            .contentShape(Rectangle())
+            .background(
+                selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.035),
+                in: RoundedRectangle(cornerRadius: 10)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(selected ? Color.accentColor.opacity(0.35) : .clear)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
