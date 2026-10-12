@@ -324,23 +324,25 @@ struct SettingsView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
-            HStack(spacing: 20) {
-                Button {
-                    isShowingFeedback = true
-                } label: {
-                    Label("Feedback, feature request or bug report", systemImage: "bubble.left")
+            Button {
+                isShowingFeedback = true
+            } label: {
+                Label("Feedback, feature request or bug report", systemImage: "bubble.left")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityHint("Opens the feedback form")
+
+            if let repositoryURL = URL(string: "https://github.com/DejaVuScreensaver/DejaVuScreensaver") {
+                Link(destination: repositoryURL) {
+                    Label(
+                        "Open source — view or contribute on GitHub",
+                        systemImage: "chevron.left.forwardslash.chevron.right"
+                    )
                 }
                 .buttonStyle(.plain)
-                .accessibilityHint("Opens the feedback form")
-
-                if let repositoryURL = URL(string: "https://github.com/DejaVuScreensaver/DejaVuScreensaver") {
-                    Link(destination: repositoryURL) {
-                        Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right")
-                    }
-                    .buttonStyle(.plain)
-                }
+                .foregroundStyle(.secondary)
             }
-            .foregroundStyle(.secondary)
 
             if let supportURL = URL(string: "https://ko-fi.com/feedpippopizza") {
                 Link(destination: supportURL) {
