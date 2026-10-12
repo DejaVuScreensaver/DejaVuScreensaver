@@ -76,6 +76,12 @@ Build, package, and ad-hoc sign a local `.app`:
 open build/DejaVuScreensaver.app
 ```
 
+Create the unsigned preview DMG and its SHA-256 checksum:
+
+```sh
+./Scripts/package-dmg.sh
+```
+
 Run tests:
 
 ```sh
@@ -87,7 +93,7 @@ identity and then notarize the result:
 
 ```sh
 CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
-  ./Scripts/build-app.sh
+  ./Scripts/package-dmg.sh
 ```
 
 The project intentionally has no App Sandbox entitlement. A notarized website
