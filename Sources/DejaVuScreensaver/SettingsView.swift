@@ -305,6 +305,14 @@ struct SettingsView: View {
             }
             .controlSize(.large)
 
+            if let reason = model.startDisabledReason {
+                Text("⚠️ \(reason)")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+            }
+
             Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"))")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)

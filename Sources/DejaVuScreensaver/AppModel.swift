@@ -82,10 +82,25 @@ final class AppModel: ObservableObject {
     }
 
     var canStart: Bool {
+        startDisabledReason == nil
+    }
+
+    var startDisabledReason: String? {
+        if isPresenting {
+            return "A slideshow is already running."
+        }
+        if !photoLibrary.canReadLibrary {
+            return photoLibrary.authorizationStatus == .notDetermined
+                ? "Allow Photos access above to start."
+                : "Photos access is blocked. Enable it in System Settings."
+        }
         let secureExitReady = preferences.value.stayOpenUntilEnded
             || !preferences.value.lockOnDisallowedKey
             || lockService.isAvailable
-        return photoLibrary.canReadLibrary && secureExitReady && !isPresenting
+        if !secureExitReady {
+            return "Automatic locking is unavailable. Choose Slideshow mode or turn off “Lock Mac”."
+        }
+        return nil
     }
 
     func requestPhotosAccess() {
