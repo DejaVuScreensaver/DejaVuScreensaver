@@ -183,6 +183,10 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertFalse(AppPreferences().idleEnabled)
     }
 
+    func testPhotoDurationDefaultsToFiveSeconds() {
+        XCTAssertEqual(AppPreferences().intervalSeconds, 5)
+    }
+
     func testNewPresentationOptionsHaveConservativeDefaults() {
         let preferences = AppPreferences()
 

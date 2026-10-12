@@ -19,7 +19,7 @@ enum SlideshowStyle: String, Codable, CaseIterable, Identifiable {
 struct AppPreferences: Codable, Equatable {
     private var preferencesVersion = 3
     var selectedAlbumIDs: Set<String> = []
-    var intervalSeconds: Double = 10
+    var intervalSeconds: Double = 5
     var idleEnabled = false
     var idleMinutes: Double = 10
     var launchAtLogin = false
@@ -58,7 +58,7 @@ struct AppPreferences: Codable, Equatable {
         let savedVersion = try values.decodeIfPresent(Int.self, forKey: .preferencesVersion) ?? 1
         preferencesVersion = 3
         selectedAlbumIDs = try values.decodeIfPresent(Set<String>.self, forKey: .selectedAlbumIDs) ?? []
-        let savedInterval = try values.decodeIfPresent(Double.self, forKey: .intervalSeconds) ?? 10
+        let savedInterval = try values.decodeIfPresent(Double.self, forKey: .intervalSeconds) ?? 5
         intervalSeconds = min(30, max(1, savedInterval))
         // Version 1 enabled idle launch by default. Migrate it to an explicit
         // opt-in so granting Photos access can never start a slideshow.

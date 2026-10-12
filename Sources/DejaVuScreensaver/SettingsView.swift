@@ -252,7 +252,7 @@ struct SettingsView: View {
 
             if let supportURL = URL(string: "https://ko-fi.com/feedpippopizza") {
                 Link(destination: supportURL) {
-                    Text("Enjoy the app? Buy me a pizza 🍕")
+                    Text("Enjoy the app? Feed me 🍕")
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
