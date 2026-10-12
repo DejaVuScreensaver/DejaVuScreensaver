@@ -203,6 +203,29 @@ final class AppPreferencesTests: XCTestCase {
 
         XCTAssertEqual(decoded.intervalSeconds, 30)
     }
+
+    func testSmartFilterMatchesAllOrAnyEnabledConditions() {
+        let cutoff = Date(timeIntervalSince1970: 1_000)
+        var filter = SmartPhotoFilter(
+            match: .all,
+            favoriteEnabled: true,
+            captureDateEnabled: true,
+            captureDateComparison: .before,
+            captureDate: cutoff
+        )
+
+        XCTAssertTrue(filter.matches(isFavorite: true, captureDate: Date(timeIntervalSince1970: 500)))
+        XCTAssertFalse(filter.matches(isFavorite: false, captureDate: Date(timeIntervalSince1970: 500)))
+        XCTAssertFalse(filter.matches(isFavorite: true, captureDate: nil))
+
+        filter.match = .any
+        XCTAssertTrue(filter.matches(isFavorite: false, captureDate: Date(timeIntervalSince1970: 500)))
+        XCTAssertTrue(filter.matches(isFavorite: true, captureDate: nil))
+    }
+
+    func testDisabledSmartFilterAcceptsEveryPhoto() {
+        XCTAssertTrue(SmartPhotoFilter().matches(isFavorite: false, captureDate: nil))
+    }
 }
 
 @MainActor

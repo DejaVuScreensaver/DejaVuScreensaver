@@ -113,9 +113,12 @@ final class AppModel: ObservableObject {
             return
         }
 
-        let assets = photoLibrary.fetchImages(from: preferences.value.selectedAlbumIDs)
+        let assets = photoLibrary.fetchImages(
+            from: preferences.value.selectedAlbumIDs,
+            matching: preferences.value.smartFilter
+        )
         guard !assets.isEmpty else {
-            statusMessage = "No photos were found in the selected source."
+            statusMessage = "No photos matched the selected source and smart filters."
             return
         }
 

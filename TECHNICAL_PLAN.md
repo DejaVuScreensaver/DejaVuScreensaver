@@ -18,7 +18,7 @@ claimed as solved.
 
 1. DejaVuScreensaver appears in the menu bar and opens a small settings window.
 2. The user grants read access to Photos.
-3. The user chooses All Photos or any combination of user and smart albums.
+3. The user chooses All Photos or any combination of user and built-in smart albums.
 4. The user configures interval, fit/fill, metadata, idle time, and launch at
    login.
 5. A manual Start Slideshow button provides a safe way to test the experience
@@ -79,7 +79,8 @@ account, server, analytics SDK, or upload path.
 
 ### M1 — functional Plan B prototype (complete)
 
-- PhotoKit permission, All Photos, user albums, smart albums, and multi-select.
+- PhotoKit permission, All Photos, user albums, built-in smart albums, and multi-select.
+- Internal smart filters for favorites and capture date, with All/Any matching.
 - Random no-repeat playback with previous/next history and pause.
 - Capture date, coordinates, and original filename overlays.
 - Configurable interval and fit/fill.

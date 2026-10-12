@@ -12,7 +12,8 @@ while ScreenSaverEngine is active.
 ## Implemented feature set
 
 - Direct read-only PhotoKit authorization
-- All Photos, user albums, smart albums, and multi-album selection
+- All Photos, user albums, built-in smart albums, and multi-album selection
+- Internal smart filters for favorites and capture date, with All/Any matching
 - iCloud Photos image retrieval through `PHCachingImageManager`
 - Random playback without repeats until the current bag is exhausted
 - History-aware Previous and Next using Left and Right Arrow

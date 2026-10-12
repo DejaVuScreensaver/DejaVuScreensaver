@@ -25,6 +25,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 22) {
                 header
                 photosSection
+                smartFiltersSection
                 playbackSection
                 behaviorSection
                 securitySection
@@ -90,7 +91,7 @@ struct SettingsView: View {
                             ForEach(filteredAlbums) { album in
                                 albumRow(
                                     title: album.title,
-                                    subtitle: album.kind == .user ? "Album" : "Smart Album",
+                                    subtitle: album.kind == .user ? "Album" : "Built-in Smart Album",
                                     selected: preferences.value.selectedAlbumIDs.contains(album.id)
                                 ) { model.toggleAlbum(album.id) }
                             }
@@ -103,6 +104,45 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+            .padding(10)
+        }
+    }
+
+    private var smartFiltersSection: some View {
+        GroupBox("Smart Filters") {
+            VStack(alignment: .leading, spacing: 12) {
+                Picker("Match", selection: smartFilterMatchBinding) {
+                    ForEach(SmartFilterMatch.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Toggle("Photo is favorite", isOn: smartFilterFavoriteBinding)
+
+                Toggle("Filter by date captured", isOn: smartFilterDateEnabledBinding)
+                if preferences.value.smartFilter.captureDateEnabled {
+                    HStack {
+                        Picker("Date Captured", selection: smartFilterDateComparisonBinding) {
+                            ForEach(CaptureDateComparison.allCases) { comparison in
+                                Text(comparison.title).tag(comparison)
+                            }
+                        }
+                        DatePicker(
+                            "",
+                            selection: smartFilterDateBinding,
+                            displayedComponents: .date
+                        )
+                        .labelsHidden()
+                    }
+                }
+
+                Text(preferences.value.smartFilter.isEnabled
+                     ? "Applied to All Photos or the albums selected above."
+                     : "No smart filter is active.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             .padding(10)
         }
@@ -364,6 +404,41 @@ struct SettingsView: View {
         Binding(
             get: { preferences.value.clockStyle },
             set: { preferences.value.clockStyle = $0 }
+        )
+    }
+
+    private var smartFilterMatchBinding: Binding<SmartFilterMatch> {
+        Binding(
+            get: { preferences.value.smartFilter.match },
+            set: { preferences.value.smartFilter.match = $0 }
+        )
+    }
+
+    private var smartFilterFavoriteBinding: Binding<Bool> {
+        Binding(
+            get: { preferences.value.smartFilter.favoriteEnabled },
+            set: { preferences.value.smartFilter.favoriteEnabled = $0 }
+        )
+    }
+
+    private var smartFilterDateEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { preferences.value.smartFilter.captureDateEnabled },
+            set: { preferences.value.smartFilter.captureDateEnabled = $0 }
+        )
+    }
+
+    private var smartFilterDateComparisonBinding: Binding<CaptureDateComparison> {
+        Binding(
+            get: { preferences.value.smartFilter.captureDateComparison },
+            set: { preferences.value.smartFilter.captureDateComparison = $0 }
+        )
+    }
+
+    private var smartFilterDateBinding: Binding<Date> {
+        Binding(
+            get: { preferences.value.smartFilter.captureDate },
+            set: { preferences.value.smartFilter.captureDate = Calendar.current.startOfDay(for: $0) }
         )
     }
 

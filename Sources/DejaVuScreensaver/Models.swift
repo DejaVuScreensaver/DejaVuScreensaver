@@ -46,9 +46,51 @@ enum SlideshowClockStyle: String, Codable, CaseIterable, Identifiable {
     var title: String { rawValue.capitalized }
 }
 
+enum SmartFilterMatch: String, Codable, CaseIterable, Identifiable {
+    case all
+    case any
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+}
+
+enum CaptureDateComparison: String, Codable, CaseIterable, Identifiable {
+    case before
+    case after
+
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+}
+
+struct SmartPhotoFilter: Codable, Equatable {
+    var match: SmartFilterMatch = .all
+    var favoriteEnabled = false
+    var captureDateEnabled = false
+    var captureDateComparison: CaptureDateComparison = .before
+    var captureDate = Calendar.current.startOfDay(for: Date())
+
+    var isEnabled: Bool { favoriteEnabled || captureDateEnabled }
+
+    func matches(isFavorite: Bool, captureDate assetDate: Date?) -> Bool {
+        var results: [Bool] = []
+        if favoriteEnabled {
+            results.append(isFavorite)
+        }
+        if captureDateEnabled {
+            let dateMatches = assetDate.map {
+                captureDateComparison == .before ? $0 < captureDate : $0 > captureDate
+            } ?? false
+            results.append(dateMatches)
+        }
+        guard !results.isEmpty else { return true }
+        return match == .all ? results.allSatisfy { $0 } : results.contains(true)
+    }
+}
+
 struct AppPreferences: Codable, Equatable {
-    private var preferencesVersion = 3
+    private var preferencesVersion = 4
     var selectedAlbumIDs: Set<String> = []
+    var smartFilter = SmartPhotoFilter()
     var intervalSeconds: Double = 5
     var idleEnabled = false
     var idleMinutes: Double = 10
@@ -69,6 +111,7 @@ struct AppPreferences: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case preferencesVersion
         case selectedAlbumIDs
+        case smartFilter
         case intervalSeconds
         case idleEnabled
         case idleMinutes
@@ -92,8 +135,9 @@ struct AppPreferences: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let savedVersion = try values.decodeIfPresent(Int.self, forKey: .preferencesVersion) ?? 1
-        preferencesVersion = 3
+        preferencesVersion = 4
         selectedAlbumIDs = try values.decodeIfPresent(Set<String>.self, forKey: .selectedAlbumIDs) ?? []
+        smartFilter = try values.decodeIfPresent(SmartPhotoFilter.self, forKey: .smartFilter) ?? SmartPhotoFilter()
         let savedInterval = try values.decodeIfPresent(Double.self, forKey: .intervalSeconds) ?? 5
         intervalSeconds = min(30, max(1, savedInterval))
         // Version 1 enabled idle launch by default. Migrate it to an explicit

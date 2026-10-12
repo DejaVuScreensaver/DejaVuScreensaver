@@ -71,7 +71,10 @@ final class PhotoLibraryService: NSObject, ObservableObject, PHPhotoLibraryChang
         }
     }
 
-    func fetchImages(from selectedAlbumIDs: Set<String>) -> [PHAsset] {
+    func fetchImages(
+        from selectedAlbumIDs: Set<String>,
+        matching smartFilter: SmartPhotoFilter
+    ) -> [PHAsset] {
         guard canReadLibrary else { return [] }
 
         let options = PHFetchOptions()
@@ -82,7 +85,9 @@ final class PhotoLibraryService: NSObject, ObservableObject, PHPhotoLibraryChang
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
 
         if selectedAlbumIDs.isEmpty {
-            return array(from: PHAsset.fetchAssets(with: options))
+            return array(from: PHAsset.fetchAssets(with: options)).filter {
+                smartFilter.matches(isFavorite: $0.isFavorite, captureDate: $0.creationDate)
+            }
         }
 
         var seen = Set<String>()
@@ -96,7 +101,9 @@ final class PhotoLibraryService: NSObject, ObservableObject, PHPhotoLibraryChang
                 }
             }
         }
-        return result
+        return result.filter {
+            smartFilter.matches(isFavorite: $0.isFavorite, captureDate: $0.creationDate)
+        }
     }
 
     func asset(withIdentifier identifier: String) -> PHAsset? {
