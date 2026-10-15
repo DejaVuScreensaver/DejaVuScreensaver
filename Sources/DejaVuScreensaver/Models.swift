@@ -11,9 +11,16 @@ enum PhotoScaleMode: String, Codable, CaseIterable, Identifiable {
 enum SlideshowStyle: String, Codable, CaseIterable, Identifiable {
     case still = "static"
     case kenBurns
+    case fade
 
     var id: String { rawValue }
-    var title: String { self == .still ? "Static" : "Ken Burns" }
+    var title: String {
+        switch self {
+        case .still: "Static"
+        case .kenBurns: "Ken Burns"
+        case .fade: "Fade"
+        }
+    }
 }
 
 enum ClockPosition: String, Codable, CaseIterable, Identifiable {
@@ -85,6 +92,7 @@ enum SmartFilterMatch: String, Codable, CaseIterable, Identifiable {
 enum CaptureDateComparison: String, Codable, CaseIterable, Identifiable {
     case before
     case after
+    case between
 
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
@@ -96,6 +104,13 @@ struct SmartPhotoFilter: Codable, Equatable {
     var captureDateEnabled = false
     var captureDateComparison: CaptureDateComparison = .before
     var captureDate = Calendar.current.startOfDay(for: Date())
+    // Optional so filters saved before the period option existed still decode.
+    var captureEndDate: Date?
+
+    /// Last day of a "between" period; never before the start day.
+    var periodEndDate: Date {
+        max(captureEndDate ?? Calendar.current.startOfDay(for: Date()), captureDate)
+    }
 
     var isEnabled: Bool { favoriteEnabled || captureDateEnabled }
 
@@ -105,8 +120,15 @@ struct SmartPhotoFilter: Codable, Equatable {
             results.append(isFavorite)
         }
         if captureDateEnabled {
-            let dateMatches = assetDate.map {
-                captureDateComparison == .before ? $0 < captureDate : $0 > captureDate
+            let dateMatches = assetDate.map { date -> Bool in
+                switch captureDateComparison {
+                case .before: return date < captureDate
+                case .after: return date > captureDate
+                case .between:
+                    // Inclusive of the whole end day.
+                    let end = Calendar.current.date(byAdding: .day, value: 1, to: periodEndDate) ?? .distantFuture
+                    return date >= captureDate && date < end
+                }
             } ?? false
             results.append(dateMatches)
         }

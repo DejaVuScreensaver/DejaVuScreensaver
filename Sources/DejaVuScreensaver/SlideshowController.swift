@@ -6,6 +6,8 @@ final class SlideshowController: ObservableObject {
     @Published private(set) var image: NSImage?
     @Published private(set) var metadata: PhotoMetadata?
     @Published private(set) var currentAssetID = ""
+    /// True when the current photo came from the timer, not from the arrow keys.
+    @Published private(set) var isAutomaticAdvance = false
     @Published private(set) var isPaused = false
     @Published private(set) var assetCount = 0
     @Published private(set) var currentPosition = 0
@@ -24,9 +26,24 @@ final class SlideshowController: ObservableObject {
     private var targetSize = CGSize(width: 3840, height: 2160)
     private var displayGeneration = 0
     private var recordedGeneration: Int?
+    private var isDisplayAsleep = false
 
     init(library: PhotoLibraryService) {
         self.library = library
+        // Like the macOS screen saver: no photo changes while the displays are off.
+        let center = NSWorkspace.shared.notificationCenter
+        _ = center.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                self?.isDisplayAsleep = true
+                self?.timerTask?.cancel()
+            }
+        }
+        _ = center.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                self?.isDisplayAsleep = false
+                self?.scheduleAdvance()
+            }
+        }
     }
 
     func begin(assets: [PHAsset], interval: TimeInterval, targetSize: CGSize) {
@@ -101,10 +118,10 @@ final class SlideshowController: ObservableObject {
 
     private func advanceAutomatically() {
         guard let index = sequence.next() else { return }
-        show(index: index, deliveryMode: .highQualityFormat)
+        show(index: index, deliveryMode: .highQualityFormat, automatic: true)
     }
 
-    private func show(index: Int, deliveryMode: PHImageRequestOptionsDeliveryMode) {
+    private func show(index: Int, deliveryMode: PHImageRequestOptionsDeliveryMode, automatic: Bool = false) {
         guard assets.indices.contains(index) else { return }
         displayGeneration += 1
         let generation = displayGeneration
@@ -126,6 +143,7 @@ final class SlideshowController: ObservableObject {
 
                 if let image {
                     self.image = image
+                    self.isAutomaticAdvance = automatic
                     self.currentAssetID = asset.localIdentifier
                     self.currentPosition = min(self.sequence.cursor + 1, self.assetCount)
                     self.metadata = self.library.metadata(for: asset)
@@ -153,7 +171,7 @@ final class SlideshowController: ObservableObject {
     private func scheduleAdvance() {
         timerTask?.cancel()
         timerTask = nil
-        guard !isPaused, !assets.isEmpty else { return }
+        guard !isPaused, !isDisplayAsleep, !assets.isEmpty else { return }
 
         let nanoseconds = UInt64(interval * 1_000_000_000)
         timerTask = Task { [weak self] in

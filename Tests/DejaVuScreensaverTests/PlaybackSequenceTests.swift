@@ -248,6 +248,23 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertTrue(filter.matches(isFavorite: true, captureDate: nil))
     }
 
+    func testSmartFilterBetweenIncludesWholeEndDay() {
+        let calendar = Calendar.current
+        let start = calendar.date(from: DateComponents(year: 2020, month: 6, day: 1))!
+        let end = calendar.date(from: DateComponents(year: 2020, month: 6, day: 30))!
+        let filter = SmartPhotoFilter(
+            captureDateEnabled: true,
+            captureDateComparison: .between,
+            captureDate: start,
+            captureEndDate: end
+        )
+
+        XCTAssertTrue(filter.matches(isFavorite: false, captureDate: start))
+        XCTAssertTrue(filter.matches(isFavorite: false, captureDate: end.addingTimeInterval(23 * 3600)))
+        XCTAssertFalse(filter.matches(isFavorite: false, captureDate: start.addingTimeInterval(-1)))
+        XCTAssertFalse(filter.matches(isFavorite: false, captureDate: end.addingTimeInterval(24 * 3600)))
+    }
+
     func testDisabledSmartFilterAcceptsEveryPhoto() {
         XCTAssertTrue(SmartPhotoFilter().matches(isFavorite: false, captureDate: nil))
     }

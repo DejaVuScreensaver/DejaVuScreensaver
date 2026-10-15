@@ -10,6 +10,8 @@ struct SettingsView: View {
     @ObservedObject private var viewingHistory: ViewingHistoryStore
     @State private var isShowingAlbumPicker = false
     @State private var isShowingFeedback = false
+    @State private var selectedPane: SettingsPane? = .photos
+    @State private var selectedPhotoCount: Int?
     let onShowHistory: () -> Void
 
     init(model: AppModel, onShowHistory: @escaping () -> Void) {
@@ -21,19 +23,50 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+        NavigationSplitView {
+            List(selection: $selectedPane) {
                 header
-                photosSection
-                smartFiltersSection
-                playbackSection
-                behaviorSection
-                securitySection
-                footer
+                    .padding(.leading, 4)
+                    .padding(.top, 6)
+                    .padding(.bottom, 20)
+                // Metrics measured from System Settings: 20pt icon, 7pt gap, 32pt row pitch, icon 9pt inside the highlight.
+                ForEach(SettingsPane.allCases) { pane in
+                    HStack(spacing: 7) {
+                        Image(systemName: pane.systemImage)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(pane.color.gradient, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        Text(pane.title)
+                            .lineLimit(1)
+                    }
+                    .padding(.leading, 4)
+                    .frame(height: 24)
+                    .tag(pane)
+                }
             }
-            .padding(28)
+            // The column width modifier alone is ignored in our AppKit-hosted window; min/max frame pins it.
+            .frame(minWidth: 250, maxWidth: 250)
+            .navigationSplitViewColumnWidth(250) // fixed, like System Settings
+            .toolbar(removing: .sidebarToggle)
+            .safeAreaInset(edge: .bottom) { sidebarFooter }
+        } detail: {
+            // Real toolbar title over a scrolling Form: macOS draws the scroll edge effect, like System Settings.
+            Form {
+                detail
+                // Inside the scroll content so the scroll bar runs full height; a footer-only Section has no panel.
+                Section {} footer: {
+                    aboutFooter
+                        .padding(.top, 16)
+                }
+            }
+            .formStyle(.grouped)
+            .toggleStyle(.switch)
+            // macOS places the toolbar title ~12pt from the column; the grouped panels start at 20pt. Pull them in to line up.
+            .padding(.leading, -8)
+            .navigationTitle((selectedPane ?? .photos).title)
         }
-        .frame(minWidth: 620, idealWidth: 680, minHeight: 680, idealHeight: 760)
+        .frame(minWidth: 870, idealWidth: 890, minHeight: 600, idealHeight: 700)
         .sheet(isPresented: $isShowingFeedback) {
             FeedbackView()
         }
@@ -42,292 +75,323 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
+    private var detail: some View {
+        switch selectedPane ?? .photos {
+        case .photos:
+            photosSection
+            smartFiltersSection
+        case .playback: playbackSection
+        case .automaticStart: behaviorSection
+        case .security: securitySection
+        }
+    }
+
     private var header: some View {
-        HStack(spacing: 15) {
+        HStack(spacing: 12) {
             Image(nsImage: NSApplication.shared.applicationIconImage)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 72, height: 72)
+                .frame(width: 48, height: 48)
+                .padding(-5) // app icon artwork has a transparent margin; keep its edge aligned with the pane icons
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("DejaVuScreensaver")
-                    .font(.largeTitle.bold())
-                HStack(spacing: 5) {
+                    .font(.headline)
+                    .lineLimit(1)
+                HStack(spacing: 4) {
                     Text("Find it in the menu bar as")
+                        .lineLimit(1)
                     Image(systemName: "photo.on.rectangle")
                         .accessibilityLabel("the DejaVuScreensaver menu bar icon")
                 }
-                .font(.callout)
+                .font(.caption)
                 .foregroundStyle(.secondary)
             }
-            Spacer()
         }
     }
 
     private var photosSection: some View {
-        GroupBox("Photos Library") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Label(authorizationText, systemImage: photoLibrary.canReadLibrary ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .foregroundStyle(photoLibrary.canReadLibrary ? .green : .orange)
-                    Spacer()
-                    if !photoLibrary.canReadLibrary {
-                        Button("Grant Access") { model.requestPhotosAccess() }
-                            .buttonStyle(.borderedProminent)
-                    } else {
-                        Button("Refresh Albums") { photoLibrary.refreshAlbums() }
-                    }
-                }
-
-                if photoLibrary.canReadLibrary {
-                    HStack(spacing: 14) {
-                        Image(systemName: preferences.value.selectedAlbumIDs.isEmpty ? "photo.stack.fill" : "rectangle.stack.fill")
-                            .font(.title2)
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 34)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(photoSourceTitle)
-                                .font(.headline)
-                            Text(photoSourceSubtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-                        Spacer()
-                        Button("Choose Albums…") {
-                            isShowingAlbumPicker = true
-                        }
-                    }
-                    .padding(12)
-                    .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
+        Section("Source") {
+            HStack {
+                Label(authorizationText, systemImage: photoLibrary.canReadLibrary ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(photoLibrary.canReadLibrary ? .green : .orange)
+                Spacer()
+                if !photoLibrary.canReadLibrary {
+                    Button("Grant Access") { model.requestPhotosAccess() }
+                        .buttonStyle(.borderedProminent)
+                } else {
+                    Button("Refresh Albums") { photoLibrary.refreshAlbums() }
                 }
             }
-            .padding(10)
+
+            if photoLibrary.canReadLibrary {
+                HStack(spacing: 14) {
+                    Image(systemName: preferences.value.selectedAlbumIDs.isEmpty ? "photo.stack.fill" : "rectangle.stack.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 34)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(photoSourceTitle)
+                            .font(.headline)
+                        Text(photoSourceSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    Spacer()
+                    Button("Choose Albums…") {
+                        isShowingAlbumPicker = true
+                    }
+                }
+            }
         }
     }
 
     private var smartFiltersSection: some View {
-        GroupBox("Smart Filters") {
-            VStack(alignment: .leading, spacing: 12) {
-                Picker("Match", selection: smartFilterMatchBinding) {
-                    ForEach(SmartFilterMatch.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
+        Section {
+            Toggle("Favorites only", isOn: smartFilterFavoriteBinding)
 
-                Toggle("Photo is favorite", isOn: smartFilterFavoriteBinding)
-
-                Toggle("Filter by date captured", isOn: smartFilterDateEnabledBinding)
-                if preferences.value.smartFilter.captureDateEnabled {
-                    HStack {
-                        Picker("Date Captured", selection: smartFilterDateComparisonBinding) {
-                            ForEach(CaptureDateComparison.allCases) { comparison in
-                                Text(comparison.title).tag(comparison)
-                            }
+            Toggle("Filter by date captured", isOn: smartFilterDateEnabledBinding)
+            if preferences.value.smartFilter.captureDateEnabled {
+                HStack {
+                    Picker("Date Captured", selection: smartFilterDateComparisonBinding) {
+                        ForEach(CaptureDateComparison.allCases) { comparison in
+                            Text(comparison.title).tag(comparison)
                         }
+                    }
+                    DatePicker(
+                        "",
+                        selection: smartFilterDateBinding,
+                        displayedComponents: .date
+                    )
+                    .labelsHidden()
+                    if preferences.value.smartFilter.captureDateComparison == .between {
+                        Text("and")
                         DatePicker(
                             "",
-                            selection: smartFilterDateBinding,
+                            selection: smartFilterEndDateBinding,
+                            in: preferences.value.smartFilter.captureDate...,
                             displayedComponents: .date
                         )
                         .labelsHidden()
                     }
                 }
-
-                Text(preferences.value.smartFilter.isEnabled
-                     ? "Applied to All Photos or the albums selected above."
-                     : "No smart filter is active.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
-            .padding(10)
-        }
-    }
 
-    private var playbackSection: some View {
-        GroupBox("Playback") {
-            VStack(alignment: .leading, spacing: 13) {
-                LabeledContent("Photo duration") {
-                    HStack {
-                        Stepper(
-                            value: intervalBinding,
-                            in: 1...30,
-                            step: 1
-                        ) {
-                            Text("\(Int(preferences.value.intervalSeconds)) sec")
-                            .monospacedDigit()
-                            .frame(width: 70, alignment: .trailing)
-                        }
-                    }
-                }
-                Picker("Slideshow style", selection: slideshowStyleBinding) {
-                    ForEach(SlideshowStyle.allCases) { style in
-                        Text(style.title).tag(style)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Picker("Image sizing", selection: scaleModeBinding) {
-                    ForEach(PhotoScaleMode.allCases) { mode in
+            // All/Any only means something once two filters are on.
+            if preferences.value.smartFilter.favoriteEnabled && preferences.value.smartFilter.captureDateEnabled {
+                Picker("Photos must match", selection: smartFilterMatchBinding) {
+                    ForEach(SmartFilterMatch.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
+                .fixedSize()
+            }
+        } header: {
+            Text("Filters")
+        } footer: {
+            if let selectedPhotoCount {
+                Text("\(selectedPhotoCount) photo\(selectedPhotoCount == 1 ? "" : "s") selected")
+            }
+        }
+        // shortcut: counts on the main actor, like Start does; move off-main if huge libraries stutter.
+        .task(id: preferences.value) {
+            selectedPhotoCount = photoLibrary.canReadLibrary
+                ? photoLibrary.fetchImages(
+                    from: preferences.value.selectedAlbumIDs,
+                    matching: preferences.value.smartFilter
+                ).count
+                : nil
+        }
+    }
 
-                Toggle("Show current time", isOn: preferenceBinding(\.showClock))
-                if preferences.value.showClock {
-                    LabeledContent("Position") {
-                        Picker("Current time position", selection: clockPositionBinding) {
-                            ForEach(ClockPosition.allCases) { position in
-                                Text(position.title).tag(position)
-                            }
-                        }
-                        .labelsHidden()
-                    }
-                    LabeledContent("Font") {
-                        Picker("Current time font", selection: clockStyleBinding) {
-                            ForEach(SlideshowClockStyle.allCases) { style in
-                                Text(style.title).tag(style)
-                            }
-                        }
-                        .labelsHidden()
-                    }
-                    LabeledContent("Size") {
-                        Picker("Current time size", selection: preferenceBinding(\.clockSize)) {
-                            ForEach(SlideshowClockSize.allCases) { size in
-                                Text(size.title).tag(size)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    Toggle(
-                        "Add background behind time",
-                        isOn: preferenceBinding(\.showClockBackground)
-                    )
-                    LabeledContent("Preview") {
-                        clockPreview
+    private var playbackSection: some View {
+        Section {
+            LabeledContent("Photo duration") {
+                HStack {
+                    Stepper(
+                        value: intervalBinding,
+                        in: 1...30,
+                        step: 1
+                    ) {
+                        Text("\(Int(preferences.value.intervalSeconds)) sec")
+                        .monospacedDigit()
+                        .frame(width: 70, alignment: .trailing)
                     }
                 }
-                Toggle("Show capture date", isOn: preferenceBinding(\.showCaptureDate))
-                Toggle("Show location", isOn: preferenceBinding(\.showLocation))
-                Toggle("Show filename", isOn: preferenceBinding(\.showFilename))
-                Toggle("Show photo number and total", isOn: preferenceBinding(\.showPhotoNumber))
-                Text("Photos are shuffled without immediate repeats. ← goes back through actual history; → advances; Space pauses or resumes.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
-            .padding(10)
+            Picker("Slideshow style", selection: slideshowStyleBinding) {
+                ForEach(SlideshowStyle.allCases) { style in
+                    Text(style.title).tag(style)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Picker("Image sizing", selection: scaleModeBinding) {
+                ForEach(PhotoScaleMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Toggle("Show current time", isOn: preferenceBinding(\.showClock))
+            if preferences.value.showClock {
+                LabeledContent("Position") {
+                    Picker("Current time position", selection: clockPositionBinding) {
+                        ForEach(ClockPosition.allCases) { position in
+                            Text(position.title).tag(position)
+                        }
+                    }
+                    .labelsHidden()
+                }
+                LabeledContent("Font") {
+                    Picker("Current time font", selection: clockStyleBinding) {
+                        ForEach(SlideshowClockStyle.allCases) { style in
+                            Text(style.title).tag(style)
+                        }
+                    }
+                    .labelsHidden()
+                }
+                LabeledContent("Size") {
+                    Picker("Current time size", selection: preferenceBinding(\.clockSize)) {
+                        ForEach(SlideshowClockSize.allCases) { size in
+                            Text(size.title).tag(size)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Toggle(
+                    "Add background behind time",
+                    isOn: preferenceBinding(\.showClockBackground)
+                )
+                LabeledContent("Preview") {
+                    clockPreview
+                }
+            }
+            Toggle("Show capture date", isOn: preferenceBinding(\.showCaptureDate))
+            Toggle("Show location", isOn: preferenceBinding(\.showLocation))
+            Toggle("Show filename", isOn: preferenceBinding(\.showFilename))
+            Toggle("Show photo number and total", isOn: preferenceBinding(\.showPhotoNumber))
+            Text("Photos are shuffled without immediate repeats. ← goes back through actual history; → advances; Space pauses or resumes.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
     private var behaviorSection: some View {
-        GroupBox("Automatic Start") {
-            VStack(alignment: .leading, spacing: 13) {
-                Toggle("Start after this Mac is idle", isOn: preferenceBinding(\.idleEnabled))
-                LabeledContent("Idle time") {
-                    HStack {
-                        Slider(value: idleBinding, in: 1...120, step: 1)
-                            .frame(width: 230)
-                        Text("\(Int(preferences.value.idleMinutes)) min")
-                            .monospacedDigit()
-                            .frame(width: 55, alignment: .trailing)
-                    }
+        Section {
+            Toggle("Start after this Mac is idle", isOn: preferenceBinding(\.idleEnabled))
+            LabeledContent("Idle time") {
+                HStack {
+                    Slider(value: idleBinding, in: 1...120) // no step: macOS 27 draws a tick per step
+                        .frame(width: 230)
+                    Text("\(Int(preferences.value.idleMinutes)) min")
+                        .monospacedDigit()
+                        .frame(width: 55, alignment: .trailing)
                 }
-                Toggle("Launch DejaVuScreensaver at login", isOn: Binding(
-                    get: { model.launchAtLoginStatus == .enabled },
-                    set: { model.setLaunchAtLogin($0) }
-                ))
-                Text("DejaVuScreensaver uses its own idle timer. To avoid switching to another screen saver, disable the macOS screen saver or set it to start later.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
-            .padding(10)
+            Toggle("Launch DejaVuScreensaver at login", isOn: Binding(
+                get: { model.launchAtLoginStatus == .enabled },
+                set: { model.setLaunchAtLogin($0) }
+            ))
+            Text("DejaVuScreensaver uses its own idle timer. The macOS screen saver will appear over DejaVuScreensaver. To avoid switching to another screen saver, disable the macOS screen saver or set it to start later.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
     private var securitySection: some View {
-        GroupBox("Security Behavior") {
-            VStack(alignment: .leading, spacing: 10) {
-                Picker("Mode", selection: preferenceBinding(\.stayOpenUntilEnded)) {
-                    Text("Screensaver").tag(false)
-                    Text("Slideshow").tag(true)
-                }
-                .pickerStyle(.segmented)
-
-                Text(preferences.value.stayOpenUntilEnded
-                     ? "Stays open during interaction. Move the pointer for End Slideshow, or press Esc to exit."
-                     : "Closes or locks when you interact with the Mac, like a screen saver.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if !preferences.value.stayOpenUntilEnded {
-                    Label(
-                        model.lockService.isAvailable ? "Automatic Mac locking is available" : "Automatic Mac locking is unavailable",
-                        systemImage: model.lockService.isAvailable ? "lock.shield.fill" : "lock.trianglebadge.exclamationmark"
-                    )
-                    .foregroundStyle(model.lockService.isAvailable ? .green : .red)
-                    Text(model.lockService.isAvailable
-                         ? "When enabled below, leaving the screensaver opens the real macOS Lock Screen."
-                         : "DejaVuScreensaver can close, but it cannot automatically lock this Mac.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Toggle(
-                        "Lock Mac when leaving the slideshow",
-                        isOn: preferenceBinding(\.lockOnDisallowedKey)
-                    )
-                    Text(preferences.value.lockOnDisallowedKey
-                         ? "Any input except ←, →, and Space invokes the real macOS Lock Screen."
-                         : "Other keys, mouse input, switching apps, or changing displays close the slideshow without locking the Mac.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("Your Mac password is handled only by macOS. DejaVuScreensaver never sees or stores it.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+        Section {
+            Picker("When someone touches the Mac", selection: exitBehaviorBinding) {
+                exitOption("Lock the Mac", "Opens the macOS Lock Screen.").tag(ExitBehavior.lock)
+                exitOption("Close the slideshow", "Back to the desktop, no password.").tag(ExitBehavior.close)
+                exitOption("Keep playing", "Press Esc to stop.").tag(ExitBehavior.keepPlaying)
             }
-            .padding(10)
+            .pickerStyle(.radioGroup)
+            .labelsHidden()
+        } header: {
+            Text("When someone touches the Mac")
+        } footer: {
+            VStack(alignment: .leading, spacing: 6) {
+                // Apple only speaks up when something doesn't work.
+                if !model.lockService.isAvailable {
+                    Label("Locking isn’t available on this Mac.", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                Text("← → and Space always browse photos. Your password is handled only by macOS.")
+            }
         }
     }
 
-    private var footer: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                Button {
-                    onShowHistory()
-                } label: {
-                    Label(
-                        "Recently Viewed (\(viewingHistory.entries.count))",
-                        systemImage: "clock.arrow.circlepath"
-                    )
-                }
+    private func exitOption(_ title: String, _ subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 3)
+    }
 
-                Button {
-                    model.startSlideshow()
-                } label: {
-                    Label("Start", systemImage: "play.fill")
-                        .frame(minWidth: 160)
+    /// The three behaviors map onto the two stored preferences.
+    private var exitBehaviorBinding: Binding<ExitBehavior> {
+        Binding(
+            get: {
+                if preferences.value.stayOpenUntilEnded { return .keepPlaying }
+                return preferences.value.lockOnDisallowedKey ? .lock : .close
+            },
+            set: {
+                preferences.value.stayOpenUntilEnded = $0 == .keepPlaying
+                if $0 != .keepPlaying {
+                    preferences.value.lockOnDisallowedKey = $0 == .lock
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!model.canStart)
             }
-            .controlSize(.large)
+        )
+    }
 
+    private var sidebarFooter: some View {
+        VStack(spacing: 8) {
             if let reason = model.startDisabledReason {
                 Label(reason, systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
             }
 
+            Button {
+                model.startSlideshow()
+            } label: {
+                Label("Start", systemImage: "play.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(!model.canStart)
+
+            Button {
+                onShowHistory()
+            } label: {
+                Label(
+                    "Recently Viewed (\(viewingHistory.entries.count))",
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(12)
+    }
+
+    private var aboutFooter: some View {
+        VStack(spacing: 8) {
             Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"))")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Button {
                 isShowingFeedback = true
             } label: {
-                Label("Feedback, feature request or bug report", systemImage: "bubble.left")
+                Label("Feedback — report a bug or request a feature", systemImage: "bubble.left")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
@@ -352,7 +416,8 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .font(.callout)
+        .frame(maxWidth: .infinity)
     }
 
     private var authorizationText: String {
@@ -420,7 +485,7 @@ struct SettingsView: View {
     private var idleBinding: Binding<Double> {
         Binding(
             get: { preferences.value.idleMinutes },
-            set: { preferences.value.idleMinutes = $0 }
+            set: { preferences.value.idleMinutes = $0.rounded() }
         )
     }
 
@@ -487,6 +552,13 @@ struct SettingsView: View {
         )
     }
 
+    private var smartFilterEndDateBinding: Binding<Date> {
+        Binding(
+            get: { preferences.value.smartFilter.periodEndDate },
+            set: { preferences.value.smartFilter.captureEndDate = Calendar.current.startOfDay(for: $0) }
+        )
+    }
+
     private func preferenceBinding<Value>(
         _ keyPath: WritableKeyPath<AppPreferences, Value>
     ) -> Binding<Value> {
@@ -494,6 +566,43 @@ struct SettingsView: View {
             get: { preferences.value[keyPath: keyPath] },
             set: { preferences.value[keyPath: keyPath] = $0 }
         )
+    }
+}
+
+private enum ExitBehavior: Hashable {
+    case lock, close, keepPlaying
+}
+
+private enum SettingsPane: CaseIterable, Identifiable {
+    case photos, playback, automaticStart, security
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .photos: "Photos"
+        case .playback: "Playback"
+        case .automaticStart: "Automatic Start"
+        case .security: "Lock & Exit"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .photos: "photo.fill"
+        case .playback: "play.fill"
+        case .automaticStart: "clock.fill"
+        case .security: "lock.fill"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .photos: .orange
+        case .playback: .green
+        case .automaticStart: .indigo
+        case .security: .blue
+        }
     }
 }
 
@@ -512,13 +621,9 @@ private struct AlbumPickerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Choose Photo Sources")
-                    .font(.title2.bold())
-                Text(selectionSummary)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Choose Albums")
+                .font(.title2.bold())
+                .frame(maxWidth: .infinity, alignment: .leading)
             .padding(24)
 
             Divider()
@@ -606,13 +711,6 @@ private struct AlbumPickerView: View {
 
     private var smartAlbums: [AlbumSource] {
         filteredAlbums.filter { $0.kind == .smart }
-    }
-
-    private var selectionSummary: String {
-        let count = preferences.value.selectedAlbumIDs.count
-        return count == 0
-            ? "Using every photo in your library"
-            : "\(count) album\(count == 1 ? "" : "s") selected · duplicates are removed"
     }
 
     private func albumSection(_ title: String, albums: [AlbumSource]) -> some View {

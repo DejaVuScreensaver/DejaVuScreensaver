@@ -80,7 +80,14 @@ struct SlideshowView: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .animation(.easeInOut(duration: 0.45), value: controller.currentAssetID)
+        .animation(photoChangeAnimation, value: controller.currentAssetID)
+    }
+
+    private var photoChangeAnimation: Animation {
+        guard preferences.slideshowStyle == .fade, controller.isAutomaticAdvance else {
+            return .easeInOut(duration: 0.45)
+        }
+        return .easeInOut(duration: min(1.5, preferences.intervalSeconds / 2))
     }
 
     private func clockOverlay(for size: CGSize) -> some View {
@@ -195,9 +202,12 @@ private struct SlideshowPhoto: View {
             .clipped()
             .onAppear {
                 guard preferences.slideshowStyle == .kenBurns else { return }
-                withAnimation(.linear(duration: max(2, preferences.intervalSeconds))) {
-                    scale = 1.08
-                    drift = CGSize(width: size.width * 0.012, height: -size.height * 0.012)
+                // Keep moving at the same speed past the photo's time: loading the next photo and the fade take extra seconds.
+                let photoTime = max(2, preferences.intervalSeconds)
+                let progress = (photoTime + 5) / photoTime
+                withAnimation(.linear(duration: photoTime + 5)) {
+                    scale = 1 + 0.08 * progress
+                    drift = CGSize(width: size.width * 0.012 * progress, height: -size.height * 0.012 * progress)
                 }
             }
     }

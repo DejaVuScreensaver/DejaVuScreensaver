@@ -51,11 +51,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     onShowHistory: { [weak self] in self?.showHistory() }
                 )
             )
+            hostingController.sceneBridgingOptions = [.title] // window title follows the selected pane
             window = NSWindow(contentViewController: hostingController)
             window.title = "DejaVuScreensaver"
-            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            window.setContentSize(NSSize(width: 680, height: 760))
-            window.contentMinSize = NSSize(width: 620, height: 680)
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            // An (empty) unified toolbar puts the title leading in the content area with no separate title band, like System Settings.
+            window.toolbar = NSToolbar()
+            window.toolbarStyle = .unifiedCompact // shorter bar
+            window.setContentSize(NSSize(width: 890, height: 700))
+            window.contentMinSize = NSSize(width: 870, height: 600)
             window.isReleasedWhenClosed = false
             window.center()
             self.settingsWindow = window
