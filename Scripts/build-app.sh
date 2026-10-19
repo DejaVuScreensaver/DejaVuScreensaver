@@ -25,6 +25,8 @@ xcrun vtool -set-build-version macos 14.0 "$(xcrun --sdk macosx --show-sdk-versi
   -output "${APP_PATH}/Contents/MacOS/DejaVuScreensaver" "${APP_PATH}/Contents/MacOS/DejaVuScreensaver"
 cp "${PROJECT_DIR}/Resources/Info.plist" "${APP_PATH}/Contents/Info.plist"
 cp "${PROJECT_DIR}/Resources/AppIcon.icns" "${APP_PATH}/Contents/Resources/AppIcon.icns"
+cp "${PROJECT_DIR}/Resources/WorldMap.pdf" "${APP_PATH}/Contents/Resources/WorldMap.pdf"
+cp "${PROJECT_DIR}/Resources/OfflinePlaces.plist" "${APP_PATH}/Contents/Resources/OfflinePlaces.plist"
 
 if [[ -n "${CODE_SIGN_IDENTITY:-}" ]]; then
   codesign --force --deep --options runtime --sign "${CODE_SIGN_IDENTITY}" "${APP_PATH}"

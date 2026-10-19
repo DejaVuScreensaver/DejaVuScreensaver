@@ -10,6 +10,7 @@ struct SettingsView: View {
     @ObservedObject private var viewingHistory: ViewingHistoryStore
     @State private var isShowingAlbumPicker = false
     @State private var isShowingFeedback = false
+    @State private var isDatePickerPresented = false
     @State private var selectedPane: SettingsPane? = .photos
     @State private var selectedPhotoCount: Int?
     let onShowHistory: () -> Void
@@ -151,6 +152,7 @@ struct SettingsView: View {
     private var smartFiltersSection: some View {
         Section {
             Toggle("Favorites only", isOn: smartFilterFavoriteBinding)
+            Toggle("Only photos with location", isOn: smartFilterLocationBinding)
 
             Toggle("Filter by date captured", isOn: smartFilterDateEnabledBinding)
             if preferences.value.smartFilter.captureDateEnabled {
@@ -160,34 +162,20 @@ struct SettingsView: View {
                             Text(comparison.title).tag(comparison)
                         }
                     }
-                    DatePicker(
-                        "",
+                    CalendarDateButton(
+                        label: preferences.value.smartFilter.captureDateComparison == .between ? "From" : "Date",
                         selection: smartFilterDateBinding,
-                        displayedComponents: .date
+                        onPresentationChange: { isDatePickerPresented = $0 }
                     )
-                    .labelsHidden()
                     if preferences.value.smartFilter.captureDateComparison == .between {
-                        Text("and")
-                        DatePicker(
-                            "",
+                        CalendarDateButton(
+                            label: "To",
                             selection: smartFilterEndDateBinding,
-                            in: preferences.value.smartFilter.captureDate...,
-                            displayedComponents: .date
+                            minimumDate: preferences.value.smartFilter.captureDate,
+                            onPresentationChange: { isDatePickerPresented = $0 }
                         )
-                        .labelsHidden()
                     }
                 }
-            }
-
-            // All/Any only means something once two filters are on.
-            if preferences.value.smartFilter.favoriteEnabled && preferences.value.smartFilter.captureDateEnabled {
-                Picker("Photos must match", selection: smartFilterMatchBinding) {
-                    ForEach(SmartFilterMatch.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .fixedSize()
             }
         } header: {
             Text("Filters")
@@ -229,6 +217,13 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
 
+            Picker("Photo order", selection: preferenceBinding(\.photoOrder)) {
+                ForEach(PhotoOrder.allCases) { order in
+                    Text(order.title).tag(order)
+                }
+            }
+            .pickerStyle(.segmented)
+
             Picker("Image sizing", selection: scaleModeBinding) {
                 ForEach(PhotoScaleMode.allCases) { mode in
                     Text(mode.title).tag(mode)
@@ -262,6 +257,15 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+                LabeledContent("Time format") {
+                    Picker("Current time format", selection: preferenceBinding(\.clockTimeFormat)) {
+                        ForEach(ClockTimeFormat.allCases) { format in
+                            Text(format.title).tag(format)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                }
                 Toggle(
                     "Add background behind time",
                     isOn: preferenceBinding(\.showClockBackground)
@@ -270,13 +274,40 @@ struct SettingsView: View {
                     clockPreview
                 }
             }
-            Toggle("Show capture date", isOn: preferenceBinding(\.showCaptureDate))
-            Toggle("Show location", isOn: preferenceBinding(\.showLocation))
-            Toggle("Show filename", isOn: preferenceBinding(\.showFilename))
-            Toggle("Show photo number and total", isOn: preferenceBinding(\.showPhotoNumber))
-            Text("Photos are shuffled without immediate repeats. ← goes back through actual history; → advances; Space pauses or resumes.")
+            Toggle("Show minimap", isOn: preferenceBinding(\.showMinimap))
+            Text("The preview uses an example location. The minimap appears only on photos with location data; use “Only photos with location” in Photos to show only those photos.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if preferences.value.showMinimap {
+                Toggle("Animate minimap zoom", isOn: preferenceBinding(\.animateMinimapZoom))
+                LabeledContent("Example preview") {
+                    WorldMinimap(
+                        coordinate: PhotoCoordinate(latitude: 41.9028, longitude: 12.4964),
+                        duration: preferences.value.intervalSeconds,
+                        size: CGSize(width: 160, height: 80),
+                        animateZoom: preferences.value.animateMinimapZoom
+                    )
+                    .id(preferences.value.animateMinimapZoom)
+                }
+            }
+            Toggle("Show location", isOn: preferenceBinding(\.showLocation))
+            Toggle("Show capture date", isOn: preferenceBinding(\.showCaptureDate))
+            Toggle("Show filename", isOn: preferenceBinding(\.showFilename))
+            Toggle("Show photo number and total", isOn: preferenceBinding(\.showPhotoNumber))
+            Text(photoOrderHelp)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var photoOrderHelp: String {
+        switch preferences.value.photoOrder {
+        case .random:
+            "Photos are shuffled without immediate repeats. ← goes back through actual history; → advances; Space pauses or resumes."
+        case .chronological:
+            "Photos play from oldest to newest, then repeat. ← goes back; → advances; Space pauses or resumes."
+        case .reverseChronological:
+            "Photos play from newest to oldest, then repeat. ← goes back; → advances; Space pauses or resumes."
         }
     }
 
@@ -418,6 +449,7 @@ struct SettingsView: View {
         }
         .font(.callout)
         .frame(maxWidth: .infinity)
+        .disabled(isDatePickerPresented)
     }
 
     private var authorizationText: String {
@@ -433,7 +465,7 @@ struct SettingsView: View {
 
     private var clockPreview: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            Text(context.date.formatted(date: .omitted, time: .shortened))
+            Text(preferences.value.clockTimeFormat.string(from: context.date))
                 .font(preferences.value.clockStyle.font(
                     size: 34 * preferences.value.clockSize.multiplier
                 ))
@@ -517,17 +549,17 @@ struct SettingsView: View {
         )
     }
 
-    private var smartFilterMatchBinding: Binding<SmartFilterMatch> {
-        Binding(
-            get: { preferences.value.smartFilter.match },
-            set: { preferences.value.smartFilter.match = $0 }
-        )
-    }
-
     private var smartFilterFavoriteBinding: Binding<Bool> {
         Binding(
             get: { preferences.value.smartFilter.favoriteEnabled },
             set: { preferences.value.smartFilter.favoriteEnabled = $0 }
+        )
+    }
+
+    private var smartFilterLocationBinding: Binding<Bool> {
+        Binding(
+            get: { preferences.value.smartFilter.locationEnabled },
+            set: { preferences.value.smartFilter.locationEnabled = $0 }
         )
     }
 

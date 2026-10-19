@@ -35,6 +35,20 @@ final class PlaybackSequenceTests: XCTestCase {
         XCTAssertEqual(sequence.next(), 0)
         XCTAssertEqual(sequence.previous(), 0)
     }
+
+    func testChronologicalOrderRepeatsOldestToNewest() {
+        var sequence = PlaybackSequence()
+        sequence.reset(itemCount: 3, order: .chronological)
+
+        XCTAssertEqual((0..<5).compactMap { _ in sequence.next() }, [0, 1, 2, 0, 1])
+    }
+
+    func testReverseChronologicalOrderRepeatsNewestToOldest() {
+        var sequence = PlaybackSequence()
+        sequence.reset(itemCount: 3, order: .reverseChronological)
+
+        XCTAssertEqual((0..<5).compactMap { _ in sequence.next() }, [2, 1, 0, 2, 1])
+    }
 }
 
 @MainActor
@@ -165,6 +179,10 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertFalse(decoded.showFilename)
         XCTAssertTrue(decoded.lockOnDisallowedKey)
         XCTAssertFalse(decoded.idleEnabled)
+        XCTAssertEqual(decoded.photoOrder, .random)
+        XCTAssertFalse(decoded.showMinimap)
+        XCTAssertTrue(decoded.animateMinimapZoom)
+        XCTAssertEqual(decoded.clockTimeFormat, .system)
     }
 
     func testKeyboardLockPreferenceRoundTrips() throws {
@@ -172,6 +190,9 @@ final class AppPreferencesTests: XCTestCase {
         preferences.lockOnDisallowedKey = false
         preferences.intervalSeconds = 24
         preferences.idleEnabled = true
+        preferences.showMinimap = true
+        preferences.animateMinimapZoom = false
+        preferences.clockTimeFormat = .twentyFourHour
 
         let data = try JSONEncoder().encode(preferences)
         let decoded = try JSONDecoder().decode(AppPreferences.self, from: data)
@@ -194,9 +215,13 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.clockPosition, .topCenter)
         XCTAssertEqual(preferences.clockStyle, .apple)
         XCTAssertEqual(preferences.clockSize, .medium)
+        XCTAssertEqual(preferences.clockTimeFormat, .system)
         XCTAssertFalse(preferences.showClockBackground)
+        XCTAssertFalse(preferences.showMinimap)
+        XCTAssertTrue(preferences.animateMinimapZoom)
         XCTAssertTrue(preferences.showPhotoNumber)
         XCTAssertEqual(preferences.slideshowStyle, .still)
+        XCTAssertEqual(preferences.photoOrder, .random)
     }
 
     func testSavedPhotoDurationIsClampedToThirtySeconds() throws {
@@ -204,6 +229,21 @@ final class AppPreferencesTests: XCTestCase {
         let decoded = try JSONDecoder().decode(AppPreferences.self, from: savedPreferences)
 
         XCTAssertEqual(decoded.intervalSeconds, 30)
+    }
+
+    func testClockTimeFormatsCanForceTwelveOrTwentyFourHours() {
+        let date = Date(timeIntervalSince1970: 13 * 3600 + 5 * 60)
+        let locale = Locale(identifier: "en_US_POSIX")
+        let timeZone = TimeZone(secondsFromGMT: 0)!
+
+        XCTAssertEqual(
+            ClockTimeFormat.twelveHour.string(from: date, locale: locale, timeZone: timeZone),
+            "1:05 PM"
+        )
+        XCTAssertEqual(
+            ClockTimeFormat.twentyFourHour.string(from: date, locale: locale, timeZone: timeZone),
+            "13:05"
+        )
     }
 
     func testPreviousRoundedDefaultMigratesToAppleFont() throws {
@@ -229,10 +269,9 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertFalse(SlideshowClockStyle.allCases.contains(.digital))
     }
 
-    func testSmartFilterMatchesAllOrAnyEnabledConditions() {
+    func testSmartFilterMatchesAllEnabledConditions() {
         let cutoff = Date(timeIntervalSince1970: 1_000)
-        var filter = SmartPhotoFilter(
-            match: .all,
+        let filter = SmartPhotoFilter(
             favoriteEnabled: true,
             captureDateEnabled: true,
             captureDateComparison: .before,
@@ -242,10 +281,16 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertTrue(filter.matches(isFavorite: true, captureDate: Date(timeIntervalSince1970: 500)))
         XCTAssertFalse(filter.matches(isFavorite: false, captureDate: Date(timeIntervalSince1970: 500)))
         XCTAssertFalse(filter.matches(isFavorite: true, captureDate: nil))
+    }
 
-        filter.match = .any
-        XCTAssertTrue(filter.matches(isFavorite: false, captureDate: Date(timeIntervalSince1970: 500)))
-        XCTAssertTrue(filter.matches(isFavorite: true, captureDate: nil))
+    func testSavedAnyFilterMigratesToAllMatching() throws {
+        let savedFilter = Data(#"{"match":"any","favoriteEnabled":true,"captureDateEnabled":true,"captureDateComparison":"before","captureDate":1000}"#.utf8)
+        let filter = try JSONDecoder().decode(SmartPhotoFilter.self, from: savedFilter)
+
+        XCTAssertFalse(filter.matches(
+            isFavorite: false,
+            captureDate: Date(timeIntervalSinceReferenceDate: 500)
+        ))
     }
 
     func testSmartFilterBetweenIncludesWholeEndDay() {
@@ -263,6 +308,13 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertTrue(filter.matches(isFavorite: false, captureDate: end.addingTimeInterval(23 * 3600)))
         XCTAssertFalse(filter.matches(isFavorite: false, captureDate: start.addingTimeInterval(-1)))
         XCTAssertFalse(filter.matches(isFavorite: false, captureDate: end.addingTimeInterval(24 * 3600)))
+    }
+
+    func testLocationFilterOnlyAcceptsPhotosWithValidCoordinates() {
+        let filter = SmartPhotoFilter(locationEnabled: true)
+
+        XCTAssertTrue(filter.matches(isFavorite: false, captureDate: nil, hasLocation: true))
+        XCTAssertFalse(filter.matches(isFavorite: false, captureDate: nil, hasLocation: false))
     }
 
     func testDisabledSmartFilterAcceptsEveryPhoto() {

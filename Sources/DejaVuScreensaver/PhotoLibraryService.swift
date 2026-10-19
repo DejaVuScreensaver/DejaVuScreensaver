@@ -13,6 +13,7 @@ final class PhotoLibraryService: NSObject, ObservableObject, PHPhotoLibraryChang
     override init() {
         authorizationStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         super.init()
+        Task.detached(priority: .utility) { _ = OfflinePlaceResolver.shared }
         PHPhotoLibrary.shared().register(self)
         if canReadLibrary {
             refreshAlbums()
@@ -84,25 +85,36 @@ final class PhotoLibraryService: NSObject, ObservableObject, PHPhotoLibraryChang
         )
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
 
+        let assets: [PHAsset]
         if selectedAlbumIDs.isEmpty {
-            return array(from: PHAsset.fetchAssets(with: options)).filter {
-                smartFilter.matches(isFavorite: $0.isFavorite, captureDate: $0.creationDate)
-            }
-        }
-
-        var seen = Set<String>()
-        var result: [PHAsset] = []
-        for id in selectedAlbumIDs.sorted() {
-            guard let collection = collectionsByID[id] else { continue }
-            let fetched = PHAsset.fetchAssets(in: collection, options: options)
-            fetched.enumerateObjects { asset, _, _ in
-                if seen.insert(asset.localIdentifier).inserted {
-                    result.append(asset)
+            assets = array(from: PHAsset.fetchAssets(with: options))
+        } else {
+            var seen = Set<String>()
+            var result: [PHAsset] = []
+            for id in selectedAlbumIDs.sorted() {
+                guard let collection = collectionsByID[id] else { continue }
+                let fetched = PHAsset.fetchAssets(in: collection, options: options)
+                fetched.enumerateObjects { asset, _, _ in
+                    if seen.insert(asset.localIdentifier).inserted {
+                        result.append(asset)
+                    }
                 }
             }
+            assets = result
         }
-        return result.filter {
-            smartFilter.matches(isFavorite: $0.isFavorite, captureDate: $0.creationDate)
+
+        return assets.filter {
+            smartFilter.matches(
+                isFavorite: $0.isFavorite,
+                captureDate: $0.creationDate,
+                hasLocation: $0.location.map { CLLocationCoordinate2DIsValid($0.coordinate) } ?? false
+            )
+        }.sorted {
+            let leftDate = $0.creationDate ?? .distantFuture
+            let rightDate = $1.creationDate ?? .distantFuture
+            return leftDate == rightDate
+                ? $0.localIdentifier < $1.localIdentifier
+                : leftDate < rightDate
         }
     }
 
@@ -154,17 +166,28 @@ final class PhotoLibraryService: NSObject, ObservableObject, PHPhotoLibraryChang
             $0.type == .photo || $0.type == .fullSizePhoto
         })?.originalFilename ?? resources.first?.originalFilename ?? "Untitled"
 
-        let location: String?
-        if let coordinate = asset.location?.coordinate {
-            location = String(format: "%.5f, %.5f", coordinate.latitude, coordinate.longitude)
+        let coordinate: PhotoCoordinate?
+        if let assetCoordinate = asset.location?.coordinate,
+           CLLocationCoordinate2DIsValid(assetCoordinate) {
+            coordinate = PhotoCoordinate(
+                latitude: assetCoordinate.latitude,
+                longitude: assetCoordinate.longitude
+            )
         } else {
-            location = nil
+            coordinate = nil
+        }
+        let location = coordinate.map { coordinate in
+            let coordinates = String(format: "%.5f, %.5f", coordinate.latitude, coordinate.longitude)
+            return OfflinePlaceResolver.shared.name(for: coordinate)
+                .map { "\($0) · \(coordinates)" }
+                ?? coordinates
         }
 
         return PhotoMetadata(
             filename: filename,
             captureDate: asset.creationDate,
-            location: location
+            location: location,
+            coordinate: coordinate
         )
     }
 

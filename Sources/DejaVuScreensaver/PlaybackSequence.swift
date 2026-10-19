@@ -5,17 +5,19 @@ struct PlaybackSequence {
     private(set) var cursor = -1
     private var bag: [Int] = []
     private var itemCount = 0
+    private var order: PhotoOrder = .random
 
     var current: Int? {
         guard history.indices.contains(cursor) else { return nil }
         return history[cursor]
     }
 
-    mutating func reset(itemCount: Int) {
+    mutating func reset(itemCount: Int, order: PhotoOrder = .random) {
         self.itemCount = max(0, itemCount)
+        self.order = order
         history = []
         cursor = -1
-        bag = Array(0..<self.itemCount).shuffled()
+        refillBag()
     }
 
     mutating func next() -> Int? {
@@ -27,7 +29,7 @@ struct PlaybackSequence {
         }
 
         if bag.isEmpty {
-            bag = Array(0..<itemCount).filter { $0 != current }.shuffled()
+            refillBag()
             if bag.isEmpty, let current { bag = [current] }
         }
 
@@ -41,5 +43,14 @@ struct PlaybackSequence {
         guard cursor > 0 else { return current }
         cursor -= 1
         return history[cursor]
+    }
+
+    private mutating func refillBag() {
+        let indices = Array(0..<itemCount).filter { order != .random || $0 != current }
+        switch order {
+        case .random: bag = indices.shuffled()
+        case .chronological: bag = Array(indices.reversed())
+        case .reverseChronological: bag = indices
+        }
     }
 }

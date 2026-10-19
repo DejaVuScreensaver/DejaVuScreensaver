@@ -141,7 +141,8 @@ final class AppModel: ObservableObject {
         slideshow.begin(
             assets: assets,
             interval: preferences.value.intervalSeconds,
-            targetSize: targetSize
+            targetSize: targetSize,
+            order: preferences.value.photoOrder
         )
         isPresenting = true
         statusMessage = "\(source) slideshow running with \(assets.count) photos."

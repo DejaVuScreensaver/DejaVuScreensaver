@@ -33,6 +33,7 @@ struct SlideshowView: View {
                         Spacer()
                         HStack(alignment: .bottom) {
                             metadataOverlay(metadata)
+                                .id(controller.currentAssetID)
                             Spacer()
                             playbackStatus
                         }
@@ -92,7 +93,7 @@ struct SlideshowView: View {
 
     private func clockOverlay(for size: CGSize) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            Text(context.date.formatted(date: .omitted, time: .shortened))
+            Text(preferences.clockTimeFormat.string(from: context.date))
                 .font(preferences.clockStyle.font(
                     size: min(140, max(64, size.width * 0.1)) * preferences.clockSize.multiplier
                 ))
@@ -127,11 +128,18 @@ struct SlideshowView: View {
     @ViewBuilder
     private func metadataOverlay(_ metadata: PhotoMetadata) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            if preferences.showCaptureDate, let date = metadata.captureDate {
-                Label(date.formatted(date: .long, time: .shortened), systemImage: "calendar")
+            if preferences.showMinimap, let coordinate = metadata.coordinate {
+                WorldMinimap(
+                    coordinate: coordinate,
+                    duration: preferences.intervalSeconds,
+                    animateZoom: preferences.animateMinimapZoom
+                )
             }
             if preferences.showLocation, let location = metadata.location {
                 Label(location, systemImage: "location.fill")
+            }
+            if preferences.showCaptureDate, let date = metadata.captureDate {
+                Label(date.formatted(date: .long, time: .shortened), systemImage: "calendar")
             }
             if preferences.showFilename {
                 Label(metadata.filename, systemImage: "photo")

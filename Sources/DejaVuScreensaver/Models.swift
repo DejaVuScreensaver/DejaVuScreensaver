@@ -23,6 +23,21 @@ enum SlideshowStyle: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum PhotoOrder: String, Codable, CaseIterable, Identifiable {
+    case random
+    case chronological
+    case reverseChronological
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .random: "Random"
+        case .chronological: "Oldest first"
+        case .reverseChronological: "Newest first"
+        }
+    }
+}
+
 enum ClockPosition: String, Codable, CaseIterable, Identifiable {
     case topLeading
     case topCenter
@@ -81,12 +96,38 @@ enum SlideshowClockSize: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-enum SmartFilterMatch: String, Codable, CaseIterable, Identifiable {
-    case all
-    case any
+enum ClockTimeFormat: String, Codable, CaseIterable, Identifiable {
+    case system
+    case twelveHour
+    case twentyFourHour
 
     var id: String { rawValue }
-    var title: String { rawValue.capitalized }
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .twelveHour: "12-hour"
+        case .twentyFourHour: "24-hour"
+        }
+    }
+
+    func string(
+        from date: Date,
+        locale: Locale = .autoupdatingCurrent,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = timeZone
+        switch self {
+        case .system:
+            formatter.timeStyle = .short
+        case .twelveHour:
+            formatter.dateFormat = "h:mm a"
+        case .twentyFourHour:
+            formatter.dateFormat = "HH:mm"
+        }
+        return formatter.string(from: date)
+    }
 }
 
 enum CaptureDateComparison: String, Codable, CaseIterable, Identifiable {
@@ -99,25 +140,63 @@ enum CaptureDateComparison: String, Codable, CaseIterable, Identifiable {
 }
 
 struct SmartPhotoFilter: Codable, Equatable {
-    var match: SmartFilterMatch = .all
     var favoriteEnabled = false
+    var locationEnabled = false
     var captureDateEnabled = false
     var captureDateComparison: CaptureDateComparison = .before
     var captureDate = Calendar.current.startOfDay(for: Date())
     // Optional so filters saved before the period option existed still decode.
     var captureEndDate: Date?
 
+    private enum CodingKeys: String, CodingKey {
+        case favoriteEnabled
+        case locationEnabled
+        case captureDateEnabled
+        case captureDateComparison
+        case captureDate
+        case captureEndDate
+    }
+
+    init(
+        favoriteEnabled: Bool = false,
+        locationEnabled: Bool = false,
+        captureDateEnabled: Bool = false,
+        captureDateComparison: CaptureDateComparison = .before,
+        captureDate: Date = Calendar.current.startOfDay(for: Date()),
+        captureEndDate: Date? = nil
+    ) {
+        self.favoriteEnabled = favoriteEnabled
+        self.locationEnabled = locationEnabled
+        self.captureDateEnabled = captureDateEnabled
+        self.captureDateComparison = captureDateComparison
+        self.captureDate = captureDate
+        self.captureEndDate = captureEndDate
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        favoriteEnabled = try values.decodeIfPresent(Bool.self, forKey: .favoriteEnabled) ?? false
+        locationEnabled = try values.decodeIfPresent(Bool.self, forKey: .locationEnabled) ?? false
+        captureDateEnabled = try values.decodeIfPresent(Bool.self, forKey: .captureDateEnabled) ?? false
+        captureDateComparison = try values.decodeIfPresent(CaptureDateComparison.self, forKey: .captureDateComparison) ?? .before
+        captureDate = try values.decodeIfPresent(Date.self, forKey: .captureDate) ?? Calendar.current.startOfDay(for: Date())
+        captureEndDate = try values.decodeIfPresent(Date.self, forKey: .captureEndDate)
+    }
+
     /// Last day of a "between" period; never before the start day.
     var periodEndDate: Date {
         max(captureEndDate ?? Calendar.current.startOfDay(for: Date()), captureDate)
     }
 
-    var isEnabled: Bool { favoriteEnabled || captureDateEnabled }
+    var isEnabled: Bool { favoriteEnabled || locationEnabled || captureDateEnabled }
 
-    func matches(isFavorite: Bool, captureDate assetDate: Date?) -> Bool {
+    func matches(isFavorite: Bool, captureDate assetDate: Date?, hasLocation: Bool = false) -> Bool {
         var results: [Bool] = []
         if favoriteEnabled {
             results.append(isFavorite)
+        }
+        if locationEnabled {
+            results.append(hasLocation)
         }
         if captureDateEnabled {
             let dateMatches = assetDate.map { date -> Bool in
@@ -133,12 +212,12 @@ struct SmartPhotoFilter: Codable, Equatable {
             results.append(dateMatches)
         }
         guard !results.isEmpty else { return true }
-        return match == .all ? results.allSatisfy { $0 } : results.contains(true)
+        return results.allSatisfy { $0 }
     }
 }
 
 struct AppPreferences: Codable, Equatable {
-    private var preferencesVersion = 6
+    private var preferencesVersion = 8
     var selectedAlbumIDs: Set<String> = []
     var smartFilter = SmartPhotoFilter()
     var intervalSeconds: Double = 5
@@ -147,14 +226,18 @@ struct AppPreferences: Codable, Equatable {
     var launchAtLogin = false
     var showCaptureDate = true
     var showLocation = true
+    var showMinimap = false
+    var animateMinimapZoom = true
     var showFilename = true
     var showClock = false
     var clockPosition: ClockPosition = .topCenter
     var clockStyle: SlideshowClockStyle = .apple
     var clockSize: SlideshowClockSize = .medium
+    var clockTimeFormat: ClockTimeFormat = .system
     var showClockBackground = false
     var showPhotoNumber = true
     var slideshowStyle: SlideshowStyle = .still
+    var photoOrder: PhotoOrder = .random
     var scaleMode: PhotoScaleMode = .fit
     var mouseMovementThreshold: Double = 18
     var lockOnDisallowedKey = true
@@ -170,14 +253,18 @@ struct AppPreferences: Codable, Equatable {
         case launchAtLogin
         case showCaptureDate
         case showLocation
+        case showMinimap
+        case animateMinimapZoom
         case showFilename
         case showClock
         case clockPosition
         case clockStyle
         case clockSize
+        case clockTimeFormat
         case showClockBackground
         case showPhotoNumber
         case slideshowStyle
+        case photoOrder
         case scaleMode
         case mouseMovementThreshold
         case lockOnDisallowedKey
@@ -189,7 +276,7 @@ struct AppPreferences: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let savedVersion = try values.decodeIfPresent(Int.self, forKey: .preferencesVersion) ?? 1
-        preferencesVersion = 6
+        preferencesVersion = 8
         selectedAlbumIDs = try values.decodeIfPresent(Set<String>.self, forKey: .selectedAlbumIDs) ?? []
         smartFilter = try values.decodeIfPresent(SmartPhotoFilter.self, forKey: .smartFilter) ?? SmartPhotoFilter()
         let savedInterval = try values.decodeIfPresent(Double.self, forKey: .intervalSeconds) ?? 5
@@ -203,6 +290,8 @@ struct AppPreferences: Codable, Equatable {
         launchAtLogin = try values.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         showCaptureDate = try values.decodeIfPresent(Bool.self, forKey: .showCaptureDate) ?? true
         showLocation = try values.decodeIfPresent(Bool.self, forKey: .showLocation) ?? true
+        showMinimap = try values.decodeIfPresent(Bool.self, forKey: .showMinimap) ?? false
+        animateMinimapZoom = try values.decodeIfPresent(Bool.self, forKey: .animateMinimapZoom) ?? true
         showFilename = try values.decodeIfPresent(Bool.self, forKey: .showFilename) ?? true
         showClock = try values.decodeIfPresent(Bool.self, forKey: .showClock) ?? false
         clockPosition = try values.decodeIfPresent(ClockPosition.self, forKey: .clockPosition) ?? .topCenter
@@ -215,9 +304,11 @@ struct AppPreferences: Codable, Equatable {
             clockStyle = savedClockStyle ?? .apple
         }
         clockSize = try values.decodeIfPresent(SlideshowClockSize.self, forKey: .clockSize) ?? .medium
+        clockTimeFormat = try values.decodeIfPresent(ClockTimeFormat.self, forKey: .clockTimeFormat) ?? .system
         showClockBackground = try values.decodeIfPresent(Bool.self, forKey: .showClockBackground) ?? false
         showPhotoNumber = try values.decodeIfPresent(Bool.self, forKey: .showPhotoNumber) ?? true
         slideshowStyle = try values.decodeIfPresent(SlideshowStyle.self, forKey: .slideshowStyle) ?? .still
+        photoOrder = try values.decodeIfPresent(PhotoOrder.self, forKey: .photoOrder) ?? .random
         scaleMode = try values.decodeIfPresent(PhotoScaleMode.self, forKey: .scaleMode) ?? .fit
         mouseMovementThreshold = try values.decodeIfPresent(Double.self, forKey: .mouseMovementThreshold) ?? 18
         lockOnDisallowedKey = try values.decodeIfPresent(Bool.self, forKey: .lockOnDisallowedKey) ?? true
@@ -236,10 +327,16 @@ struct AlbumSource: Identifiable, Hashable {
     }
 }
 
+struct PhotoCoordinate: Equatable {
+    let latitude: Double
+    let longitude: Double
+}
+
 struct PhotoMetadata: Equatable {
     let filename: String
     let captureDate: Date?
     let location: String?
+    let coordinate: PhotoCoordinate?
 }
 
 @MainActor

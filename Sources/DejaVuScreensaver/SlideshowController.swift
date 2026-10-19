@@ -46,7 +46,7 @@ final class SlideshowController: ObservableObject {
         }
     }
 
-    func begin(assets: [PHAsset], interval: TimeInterval, targetSize: CGSize) {
+    func begin(assets: [PHAsset], interval: TimeInterval, targetSize: CGSize, order: PhotoOrder) {
         stop()
         self.assets = assets
         self.interval = max(1, interval)
@@ -55,7 +55,7 @@ final class SlideshowController: ObservableObject {
         isPaused = false
         securityMessage = nil
         isExitControlVisible = false
-        sequence.reset(itemCount: assets.count)
+        sequence.reset(itemCount: assets.count, order: order)
         if let first = sequence.next() {
             show(index: first, deliveryMode: .highQualityFormat)
         }
