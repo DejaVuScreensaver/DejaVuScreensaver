@@ -10,7 +10,7 @@ final class AppModel: ObservableObject {
 
     let preferences = PreferencesStore()
     let photoLibrary = PhotoLibraryService()
-    let lockService = ScreenLockService()
+    let lockService: any ScreenLocking
     let viewingHistory = ViewingHistoryStore()
     let slideshow: SlideshowController
     var onUnlockAfterSlideshow: (() -> Void)?
@@ -20,8 +20,10 @@ final class AppModel: ObservableObject {
     private var lockObserver: NSObjectProtocol?
     private var unlockObserver: NSObjectProtocol?
     private var reopenSettingsAfterUnlock = false
+    private var lockConfirmationTask: Task<Void, Never>?
 
-    init() {
+    init(lockService: any ScreenLocking = ScreenLockService()) {
+        self.lockService = lockService
         slideshow = SlideshowController(library: photoLibrary)
         slideshow.onPhotoDisplayed = { [weak self] asset in
             self?.viewingHistory.record(assetIdentifier: asset.localIdentifier)
@@ -48,9 +50,7 @@ final class AppModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
-                self.reopenSettingsAfterUnlock = self.isPresenting
-                self.stopSlideshow()
+                self?.handleSessionLockedNotification()
             }
         }
         unlockObserver = DistributedNotificationCenter.default().addObserver(
@@ -59,7 +59,7 @@ final class AppModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, !self.lockService.isSessionLocked else { return }
                 self.idleMonitor.disarmUntilUserActivity()
                 guard self.reopenSettingsAfterUnlock else { return }
                 self.reopenSettingsAfterUnlock = false
@@ -73,6 +73,7 @@ final class AppModel: ObservableObject {
     }
 
     deinit {
+        lockConfirmationTask?.cancel()
         if let lockObserver {
             DistributedNotificationCenter.default().removeObserver(lockObserver)
         }
@@ -167,11 +168,24 @@ final class AppModel: ObservableObject {
     }
 
     func stopSlideshow() {
+        lockConfirmationTask?.cancel()
+        lockConfirmationTask = nil
         guard isPresenting || presentation.isVisible else { return }
         presentation.stop()
         slideshow.stop()
         isPresenting = false
         idleMonitor.disarmUntilUserActivity()
+    }
+
+    @discardableResult
+    func handleSessionLockedNotification() -> Bool {
+        // A distributed notification is only a hint; another process can post it.
+        guard lockService.isSessionLocked else { return false }
+        if isPresenting {
+            reopenSettingsAfterUnlock = true
+        }
+        stopSlideshow()
+        return true
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
@@ -205,15 +219,17 @@ final class AppModel: ObservableObject {
 
     private func lockFromSlideshow() {
         guard isPresenting else { return }
+        slideshow.prepareForLock()
         reopenSettingsAfterUnlock = true
         if lockService.lockNow() {
             statusMessage = "Requested the macOS Lock Screen; keeping every display covered until macOS confirms it."
-            Task { [weak self] in
+            lockConfirmationTask?.cancel()
+            lockConfirmationTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 guard !Task.isCancelled else { return }
                 guard let self, self.isPresenting else { return }
                 if self.lockService.isSessionLocked {
-                    self.stopSlideshow()
+                    self.handleSessionLockedNotification()
                 } else {
                     self.statusMessage = "macOS did not confirm that the session locked. The black security cover remains active."
                     self.slideshow.showSecurityFailure(

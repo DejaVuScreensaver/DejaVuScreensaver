@@ -67,6 +67,7 @@ state instead of a crash or an unlocked dismissal.
 Requirements:
 
 - macOS 14 or later
+- Apple Silicon or Intel (the packaged app is universal)
 - Xcode 15 or later
 
 Build, package, and ad-hoc sign a local `.app`:

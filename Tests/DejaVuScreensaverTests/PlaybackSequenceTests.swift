@@ -380,6 +380,39 @@ final class AppPreferencesTests: XCTestCase {
 
 @MainActor
 final class ViewingHistoryStoreTests: XCTestCase {
+    func testLegacyHistoryMigratesAndCannotReturnAfterClear() throws {
+        let suiteName = "DejaVuScreensaverTests.legacyHistory.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let legacyKey = "OpenPhotoSaver.viewingHistory.v1"
+        let entries = [ViewingHistoryEntry(assetIdentifier: "legacy-photo", viewedAt: Date(timeIntervalSince1970: 1))]
+        defaults.set(try JSONEncoder().encode(entries), forKey: legacyKey)
+
+        let store = ViewingHistoryStore(defaults: defaults)
+        XCTAssertEqual(store.entries, entries)
+        XCTAssertNil(defaults.data(forKey: legacyKey))
+        XCTAssertEqual(ViewingHistoryStore(defaults: defaults).entries, entries)
+
+        // An older app version may write its legacy key again after migration.
+        defaults.set(try JSONEncoder().encode(entries), forKey: legacyKey)
+        store.clear()
+        XCTAssertNil(defaults.data(forKey: legacyKey))
+        XCTAssertTrue(ViewingHistoryStore(defaults: defaults).entries.isEmpty)
+    }
+
+    func testCurrentHistoryWinsWhenBothStorageKeysExist() throws {
+        let suiteName = "DejaVuScreensaverTests.currentHistory.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let current = [ViewingHistoryEntry(assetIdentifier: "current-photo", viewedAt: Date(timeIntervalSince1970: 2))]
+        let legacy = [ViewingHistoryEntry(assetIdentifier: "old-photo", viewedAt: Date(timeIntervalSince1970: 1))]
+        defaults.set(try JSONEncoder().encode(current), forKey: "DejaVuScreensaver.viewingHistory.v1")
+        defaults.set(try JSONEncoder().encode(legacy), forKey: "OpenPhotoSaver.viewingHistory.v1")
+
+        XCTAssertEqual(ViewingHistoryStore(defaults: defaults).entries, current)
+        XCTAssertNil(defaults.data(forKey: "OpenPhotoSaver.viewingHistory.v1"))
+    }
+
     func testHistoryIsRecentUniqueLimitedAndPersistent() {
         let suiteName = "DejaVuScreensaverTests.history.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

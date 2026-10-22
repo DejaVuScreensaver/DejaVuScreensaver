@@ -36,6 +36,10 @@ final class ViewingHistoryStore: ObservableObject {
         } else {
             entries = []
         }
+        if key == Self.defaultKey, defaults.data(forKey: Self.legacyKey) != nil {
+            save()
+            defaults.removeObject(forKey: Self.legacyKey)
+        }
     }
 
     func record(assetIdentifier: String, viewedAt: Date = Date()) {
@@ -54,6 +58,9 @@ final class ViewingHistoryStore: ObservableObject {
     func clear() {
         entries = []
         defaults.removeObject(forKey: key)
+        if key == Self.defaultKey {
+            defaults.removeObject(forKey: Self.legacyKey)
+        }
     }
 
     private func save() {

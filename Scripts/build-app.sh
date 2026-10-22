@@ -7,7 +7,7 @@ CONFIGURATION="${CONFIGURATION:-release}"
 OUTPUT_DIR="${PROJECT_DIR}/build"
 APP_PATH="${OUTPUT_DIR}/DejaVuScreensaver.app"
 ENTITLEMENTS_PATH="${PROJECT_DIR}/Resources/DejaVuScreensaver.entitlements"
-SWIFT_BUILD_ARGS=(-c "${CONFIGURATION}")
+SWIFT_BUILD_ARGS=(-c "${CONFIGURATION}" --arch arm64 --arch x86_64)
 
 if [[ "${DISABLE_SWIFTPM_SANDBOX:-0}" == "1" ]]; then
   SWIFT_BUILD_ARGS+=(--disable-sandbox)
@@ -22,7 +22,7 @@ mkdir -p "${APP_PATH}/Contents/MacOS" "${APP_PATH}/Contents/Resources"
 cp "${BIN_DIR}/DejaVuScreensaver" "${APP_PATH}/Contents/MacOS/DejaVuScreensaver"
 # SwiftPM stamps the binary with the deployment target as its SDK version, so newer macOS draws the app in
 # its old compatibility look. Stamp the real SDK; the minimum stays macOS 14 (keep in sync with Package.swift).
-xcrun vtool -set-build-version macos 14.0 "$(xcrun --sdk macosx --show-sdk-version)" -replace \
+xcrun vtool -arch arm64 -arch x86_64 -set-build-version macos 14.0 "$(xcrun --sdk macosx --show-sdk-version)" -replace \
   -output "${APP_PATH}/Contents/MacOS/DejaVuScreensaver" "${APP_PATH}/Contents/MacOS/DejaVuScreensaver"
 cp "${PROJECT_DIR}/Resources/Info.plist" "${APP_PATH}/Contents/Info.plist"
 cp "${PROJECT_DIR}/Resources/AppIcon.icns" "${APP_PATH}/Contents/Resources/AppIcon.icns"

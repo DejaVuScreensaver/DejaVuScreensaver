@@ -13,6 +13,7 @@ final class SlideshowController: ObservableObject {
     @Published private(set) var currentPosition = 0
     @Published private(set) var isLoading = false
     @Published private(set) var securityMessage: String?
+    @Published private(set) var isSecurityCoverVisible = false
     @Published private(set) var isExitControlVisible = false
 
     var onPhotoDisplayed: ((PHAsset) -> Void)?
@@ -54,6 +55,7 @@ final class SlideshowController: ObservableObject {
         assetCount = assets.count
         isPaused = false
         securityMessage = nil
+        isSecurityCoverVisible = false
         isExitControlVisible = false
         sequence.reset(itemCount: assets.count, order: order)
         if let first = sequence.next() {
@@ -79,20 +81,24 @@ final class SlideshowController: ObservableObject {
         isLoading = false
         isPaused = false
         securityMessage = nil
+        isSecurityCoverVisible = false
         isExitControlVisible = false
     }
 
     func next() {
+        guard !isSecurityCoverVisible else { return }
         guard let index = sequence.next() else { return }
         show(index: index, deliveryMode: .opportunistic)
     }
 
     func previous() {
+        guard !isSecurityCoverVisible else { return }
         guard let index = sequence.previous() else { return }
         show(index: index, deliveryMode: .opportunistic)
     }
 
     func togglePause() {
+        guard !isSecurityCoverVisible else { return }
         isPaused.toggle()
         scheduleAdvance()
     }
@@ -102,13 +108,31 @@ final class SlideshowController: ObservableObject {
         scheduleAdvance()
     }
 
-    func showSecurityFailure(_ message: String) {
-        securityMessage = message
+    func prepareForLock() {
+        guard !isSecurityCoverVisible else { return }
+        isSecurityCoverVisible = true
+        displayGeneration += 1
         isPaused = true
         timerTask?.cancel()
+        timerTask = nil
+        if let imageRequestID {
+            library.cancelImageRequest(imageRequestID)
+        }
+        imageRequestID = nil
+        image = nil
+        metadata = nil
+        currentAssetID = ""
+        isLoading = false
+        isExitControlVisible = false
+    }
+
+    func showSecurityFailure(_ message: String) {
+        prepareForLock()
+        securityMessage = message
     }
 
     func showExitControl() {
+        guard !isSecurityCoverVisible else { return }
         isExitControlVisible = true
     }
 
@@ -122,7 +146,7 @@ final class SlideshowController: ObservableObject {
     }
 
     private func show(index: Int, deliveryMode: PHImageRequestOptionsDeliveryMode, automatic: Bool = false) {
-        guard assets.indices.contains(index) else { return }
+        guard !isSecurityCoverVisible, assets.indices.contains(index) else { return }
         displayGeneration += 1
         let generation = displayGeneration
         timerTask?.cancel()
@@ -171,7 +195,7 @@ final class SlideshowController: ObservableObject {
     private func scheduleAdvance() {
         timerTask?.cancel()
         timerTask = nil
-        guard !isPaused, !isDisplayAsleep, !assets.isEmpty else { return }
+        guard !isSecurityCoverVisible, !isPaused, !isDisplayAsleep, !assets.isEmpty else { return }
 
         let nanoseconds = UInt64(interval * 1_000_000_000)
         timerTask = Task { [weak self] in

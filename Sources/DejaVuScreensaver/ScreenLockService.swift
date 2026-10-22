@@ -2,9 +2,15 @@ import AppKit
 import Darwin
 import Foundation
 
+protocol ScreenLocking {
+    var isAvailable: Bool { get }
+    var isSessionLocked: Bool { get }
+    func lockNow() -> Bool
+}
+
 /// Uses the same private login.framework primitive as the macOS Lock Screen
 /// menu item. This app is intentionally distributed outside the Mac App Store.
-final class ScreenLockService {
+final class ScreenLockService: ScreenLocking {
     private typealias LockFunction = @convention(c) () -> Void
 
     private let frameworkHandle: UnsafeMutableRawPointer?

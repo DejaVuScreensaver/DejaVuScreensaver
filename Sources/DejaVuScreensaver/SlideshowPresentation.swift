@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class SlideshowPresentation {
     private var windows: [NSWindow] = []
+    private var securityCoverWindows: [NSWindow] = []
     private var localEventMonitor: Any?
     private var resignObserver: NSObjectProtocol?
     private var screenObserver: NSObjectProtocol?
@@ -102,6 +103,8 @@ final class SlideshowPresentation {
 
         windows.forEach { $0.orderOut(nil) }
         windows = []
+        securityCoverWindows.forEach { $0.orderOut(nil) }
+        securityCoverWindows = []
         NSApp.presentationOptions = previousPresentationOptions
         if cursorHidden {
             NSCursor.unhide()
@@ -147,10 +150,36 @@ final class SlideshowPresentation {
                 if self.stayOpenUntilEnded {
                     self.requestDismiss()
                 } else {
+                    if self.lockOnExitInput {
+                        self.coverScreensForLock()
+                    }
                     self.requestExit()
                 }
             }
         }
+    }
+
+    private func coverScreensForLock() {
+        guard isVisible, let controller else { return }
+        controller.prepareForLock()
+        // Native opaque windows cover immediately, including newly attached displays.
+        let covers = NSScreen.screens.map { screen in
+            let window = NSWindow(
+                contentRect: screen.frame, styleMask: [.borderless],
+                backing: .buffered, defer: false, screen: screen
+            )
+            window.backgroundColor = .black
+            window.isOpaque = true
+            window.hasShadow = false
+            window.level = .screenSaver
+            window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+            window.contentView = NSHostingView(rootView: SlideshowSecurityCover(controller: controller))
+            window.setFrame(screen.frame, display: true)
+            window.orderFrontRegardless()
+            return window
+        }
+        securityCoverWindows.forEach { $0.orderOut(nil) }
+        securityCoverWindows = covers
     }
 
     private func handle(_ event: NSEvent) -> NSEvent? {
@@ -241,6 +270,7 @@ final class SlideshowPresentation {
         guard !isRequestingLock else { return }
         isRequestingLock = true
         if lockOnExitInput {
+            coverScreensForLock()
             onLock?()
         } else {
             onDismiss?()

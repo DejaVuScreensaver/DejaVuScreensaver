@@ -10,7 +10,7 @@ struct SlideshowView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                if let image = controller.image {
+                if !controller.isSecurityCoverVisible, let image = controller.image {
                     SlideshowPhoto(
                         image: image,
                         size: geometry.size,
@@ -18,17 +18,17 @@ struct SlideshowView: View {
                     )
                         .id(controller.currentAssetID)
                         .transition(.opacity)
-                } else if controller.isLoading {
+                } else if !controller.isSecurityCoverVisible, controller.isLoading {
                     ProgressView()
                         .controlSize(.large)
                         .tint(.white)
                 }
 
-                if preferences.showClock {
+                if !controller.isSecurityCoverVisible, preferences.showClock {
                     clockOverlay(for: geometry.size)
                 }
 
-                if let metadata = controller.metadata {
+                if !controller.isSecurityCoverVisible, let metadata = controller.metadata {
                     VStack {
                         Spacer()
                         HStack(alignment: .bottom) {
@@ -42,7 +42,7 @@ struct SlideshowView: View {
                 }
 
 
-                if preferences.stayOpenUntilEnded, controller.isExitControlVisible {
+                if !controller.isSecurityCoverVisible, preferences.stayOpenUntilEnded, controller.isExitControlVisible {
                     VStack {
                         HStack {
                             if preferences.clockPosition != .topTrailing {
@@ -60,28 +60,18 @@ struct SlideshowView: View {
                     .padding(28)
                 }
 
-                if let message = controller.securityMessage {
-                    Color.black.opacity(0.94).ignoresSafeArea()
-                    VStack(spacing: 14) {
-                        Image(systemName: "lock.trianglebadge.exclamationmark")
-                            .font(.system(size: 44))
-                        Text("Couldn’t open the macOS Lock Screen")
-                            .font(.title2.bold())
-                        Text(message)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.secondary)
-                        Text("Press Control–Command–Q to lock this Mac.")
-                            .font(.headline)
-                    }
-                    .foregroundStyle(.white)
-                    .padding(36)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
-                    .padding(40)
+                if controller.isSecurityCoverVisible {
+                    SlideshowSecurityCover(controller: controller)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .animation(photoChangeAnimation, value: controller.currentAssetID)
+        .transaction { transaction in
+            if controller.isSecurityCoverVisible {
+                transaction.disablesAnimations = true
+            }
+        }
     }
 
     private var photoChangeAnimation: Animation {
@@ -164,6 +154,31 @@ struct SlideshowView: View {
         .padding(.horizontal, 13)
         .padding(.vertical, 9)
         .background(.black.opacity(0.52), in: Capsule())
+    }
+}
+
+struct SlideshowSecurityCover: View {
+    @ObservedObject var controller: SlideshowController
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            if let message = controller.securityMessage {
+                VStack(spacing: 14) {
+                    Image(systemName: "lock.trianglebadge.exclamationmark")
+                        .font(.system(size: 44))
+                    Text("Couldn’t open the macOS Lock Screen")
+                        .font(.title2.bold())
+                    Text(message)
+                        .multilineTextAlignment(.center)
+                    Text("Press Control–Command–Q to lock this Mac.")
+                        .font(.headline)
+                }
+                .foregroundStyle(.white)
+                .padding(40)
+            }
+        }
+        .transaction { $0.disablesAnimations = true }
     }
 }
 
