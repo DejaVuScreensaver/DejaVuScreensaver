@@ -21,5 +21,9 @@ hdiutil create \
   -ov \
   "${DMG_PATH}"
 
+if [[ -n "${CODE_SIGN_IDENTITY:-}" ]]; then
+  codesign --force --timestamp --sign "${CODE_SIGN_IDENTITY}" "${DMG_PATH}"
+fi
+
 (cd "${OUTPUT_DIR}" && shasum -a 256 "${DMG_NAME}" > "${DMG_NAME}.sha256")
 echo "Packaged ${DMG_PATH}"

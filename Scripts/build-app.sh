@@ -6,6 +6,7 @@ PROJECT_DIR="${SCRIPT_DIR:h}"
 CONFIGURATION="${CONFIGURATION:-release}"
 OUTPUT_DIR="${PROJECT_DIR}/build"
 APP_PATH="${OUTPUT_DIR}/DejaVuScreensaver.app"
+ENTITLEMENTS_PATH="${PROJECT_DIR}/Resources/DejaVuScreensaver.entitlements"
 SWIFT_BUILD_ARGS=(-c "${CONFIGURATION}")
 
 if [[ "${DISABLE_SWIFTPM_SANDBOX:-0}" == "1" ]]; then
@@ -29,9 +30,10 @@ cp "${PROJECT_DIR}/Resources/WorldMap.pdf" "${APP_PATH}/Contents/Resources/World
 cp "${PROJECT_DIR}/Resources/OfflinePlaces.plist" "${APP_PATH}/Contents/Resources/OfflinePlaces.plist"
 
 if [[ -n "${CODE_SIGN_IDENTITY:-}" ]]; then
-  codesign --force --deep --options runtime --sign "${CODE_SIGN_IDENTITY}" "${APP_PATH}"
+  codesign --force --deep --options runtime --entitlements "${ENTITLEMENTS_PATH}" \
+    --sign "${CODE_SIGN_IDENTITY}" "${APP_PATH}"
 else
-  codesign --force --deep --sign - "${APP_PATH}"
+  codesign --force --deep --entitlements "${ENTITLEMENTS_PATH}" --sign - "${APP_PATH}"
 fi
 
 echo "Built ${APP_PATH}"
