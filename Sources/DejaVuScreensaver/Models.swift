@@ -139,9 +139,40 @@ enum CaptureDateComparison: String, Codable, CaseIterable, Identifiable {
     var title: String { rawValue.capitalized }
 }
 
+enum DistanceUnit: String, Codable, CaseIterable, Identifiable {
+    case metric
+    case imperial
+
+    var id: Self { self }
+    var symbol: String { self == .metric ? "km" : "mi" }
+
+    func displayedDistance(forKilometers kilometers: Double) -> Double {
+        switch self {
+        case .metric: kilometers
+        case .imperial:
+            Measurement(value: kilometers, unit: UnitLength.kilometers)
+                .converted(to: .miles).value
+        }
+    }
+
+    func kilometers(forDisplayedDistance distance: Double) -> Double {
+        switch self {
+        case .metric: distance
+        case .imperial:
+            Measurement(value: distance, unit: UnitLength.miles)
+                .converted(to: .kilometers).value
+        }
+    }
+}
+
 struct SmartPhotoFilter: Codable, Equatable {
     var favoriteEnabled = false
     var locationEnabled = false
+    var countryName: String?
+    var radiusEnabled = false
+    var radiusCenter = PhotoCoordinate(latitude: 41.9028, longitude: 12.4964)
+    var radiusKilometers = 50.0
+    var distanceUnit: DistanceUnit = .metric
     var captureDateEnabled = false
     var captureDateComparison: CaptureDateComparison = .before
     var captureDate = Calendar.current.startOfDay(for: Date())
@@ -151,6 +182,11 @@ struct SmartPhotoFilter: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case favoriteEnabled
         case locationEnabled
+        case countryName
+        case radiusEnabled
+        case radiusCenter
+        case radiusKilometers
+        case distanceUnit
         case captureDateEnabled
         case captureDateComparison
         case captureDate
@@ -160,6 +196,11 @@ struct SmartPhotoFilter: Codable, Equatable {
     init(
         favoriteEnabled: Bool = false,
         locationEnabled: Bool = false,
+        countryName: String? = nil,
+        radiusEnabled: Bool = false,
+        radiusCenter: PhotoCoordinate = PhotoCoordinate(latitude: 41.9028, longitude: 12.4964),
+        radiusKilometers: Double = 50,
+        distanceUnit: DistanceUnit = .metric,
         captureDateEnabled: Bool = false,
         captureDateComparison: CaptureDateComparison = .before,
         captureDate: Date = Calendar.current.startOfDay(for: Date()),
@@ -167,6 +208,11 @@ struct SmartPhotoFilter: Codable, Equatable {
     ) {
         self.favoriteEnabled = favoriteEnabled
         self.locationEnabled = locationEnabled
+        self.countryName = countryName
+        self.radiusEnabled = radiusEnabled
+        self.radiusCenter = radiusCenter
+        self.radiusKilometers = radiusKilometers
+        self.distanceUnit = distanceUnit
         self.captureDateEnabled = captureDateEnabled
         self.captureDateComparison = captureDateComparison
         self.captureDate = captureDate
@@ -177,6 +223,15 @@ struct SmartPhotoFilter: Codable, Equatable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         favoriteEnabled = try values.decodeIfPresent(Bool.self, forKey: .favoriteEnabled) ?? false
         locationEnabled = try values.decodeIfPresent(Bool.self, forKey: .locationEnabled) ?? false
+        countryName = try values.decodeIfPresent(String.self, forKey: .countryName)
+        radiusEnabled = try values.decodeIfPresent(Bool.self, forKey: .radiusEnabled) ?? false
+        radiusCenter = try values.decodeIfPresent(PhotoCoordinate.self, forKey: .radiusCenter)
+            ?? PhotoCoordinate(latitude: 41.9028, longitude: 12.4964)
+        radiusKilometers = min(20_000, max(
+            1,
+            try values.decodeIfPresent(Double.self, forKey: .radiusKilometers) ?? 50
+        ))
+        distanceUnit = try values.decodeIfPresent(DistanceUnit.self, forKey: .distanceUnit) ?? .metric
         captureDateEnabled = try values.decodeIfPresent(Bool.self, forKey: .captureDateEnabled) ?? false
         captureDateComparison = try values.decodeIfPresent(CaptureDateComparison.self, forKey: .captureDateComparison) ?? .before
         captureDate = try values.decodeIfPresent(Date.self, forKey: .captureDate) ?? Calendar.current.startOfDay(for: Date())
@@ -188,15 +243,30 @@ struct SmartPhotoFilter: Codable, Equatable {
         max(captureEndDate ?? Calendar.current.startOfDay(for: Date()), captureDate)
     }
 
-    var isEnabled: Bool { favoriteEnabled || locationEnabled || captureDateEnabled }
+    var isEnabled: Bool {
+        favoriteEnabled || locationEnabled || countryName != nil || radiusEnabled || captureDateEnabled
+    }
 
-    func matches(isFavorite: Bool, captureDate assetDate: Date?, hasLocation: Bool = false) -> Bool {
+    func matches(
+        isFavorite: Bool,
+        captureDate assetDate: Date?,
+        coordinate: PhotoCoordinate? = nil,
+        isInSelectedCountry: Bool = false
+    ) -> Bool {
         var results: [Bool] = []
         if favoriteEnabled {
             results.append(isFavorite)
         }
         if locationEnabled {
-            results.append(hasLocation)
+            results.append(coordinate != nil)
+        }
+        if countryName != nil {
+            results.append(isInSelectedCountry)
+        }
+        if radiusEnabled {
+            results.append(coordinate.map {
+                OfflinePlaceResolver.distance(from: radiusCenter, to: $0) <= radiusKilometers
+            } ?? false)
         }
         if captureDateEnabled {
             let dateMatches = assetDate.map { date -> Bool in
@@ -327,7 +397,7 @@ struct AlbumSource: Identifiable, Hashable {
     }
 }
 
-struct PhotoCoordinate: Equatable {
+struct PhotoCoordinate: Codable, Equatable, Hashable {
     let latitude: Double
     let longitude: Double
 }

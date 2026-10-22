@@ -104,10 +104,22 @@ final class PhotoLibraryService: NSObject, ObservableObject, PHPhotoLibraryChang
         }
 
         return assets.filter {
-            smartFilter.matches(
+            let coordinate = $0.location.flatMap { location in
+                CLLocationCoordinate2DIsValid(location.coordinate)
+                    ? PhotoCoordinate(
+                        latitude: location.coordinate.latitude,
+                        longitude: location.coordinate.longitude
+                    )
+                    : nil
+            }
+            return smartFilter.matches(
                 isFavorite: $0.isFavorite,
                 captureDate: $0.creationDate,
-                hasLocation: $0.location.map { CLLocationCoordinate2DIsValid($0.coordinate) } ?? false
+                coordinate: coordinate,
+                isInSelectedCountry: smartFilter.countryName.map { country in
+                    coordinate.map { OfflinePlaceResolver.shared.isInCountry(named: country, coordinate: $0) }
+                        ?? false
+                } ?? false
             )
         }.sorted {
             let leftDate = $0.creationDate ?? .distantFuture

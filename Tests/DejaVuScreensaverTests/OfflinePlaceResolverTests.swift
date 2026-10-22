@@ -33,6 +33,27 @@ final class OfflinePlaceResolverTests: XCTestCase {
         XCTAssertNil(resolver.name(for: PhotoCoordinate(latitude: -20, longitude: -20)))
     }
 
+    func testSearchesCitiesAndAddsTheirCountry() {
+        let resolver = OfflinePlaceResolver(database: OfflinePlaceDatabase(
+            cities: [OfflineCity(name: "Rome", longitude: 50_000, latitude: 50_000)],
+            regions: [],
+            countries: [area(name: "Italy", minimum: 0, maximum: 10)]
+        ))
+
+        XCTAssertEqual(
+            resolver.cities(matching: "rom"),
+            [OfflineCitySearchResult(
+                name: "Rome",
+                country: "Italy",
+                coordinate: PhotoCoordinate(latitude: 5, longitude: 5)
+            )]
+        )
+        XCTAssertTrue(resolver.isInCountry(
+            named: "Italy",
+            coordinate: PhotoCoordinate(latitude: 5, longitude: 5)
+        ))
+    }
+
     private func area(
         name: String,
         country: String? = nil,

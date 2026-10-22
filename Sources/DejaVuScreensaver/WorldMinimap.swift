@@ -8,15 +8,13 @@ struct WorldMinimap: View {
     var animateZoom = true
 
     // Silhouette derived from Natural Earth 1:110m land data (public domain).
-    private static let mapPage = Bundle.main.url(forResource: "WorldMap", withExtension: "pdf")
-        .flatMap { CGPDFDocument($0 as CFURL)?.page(at: 1) }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoomProgress: CGFloat = 0
 
-    private let maximumZoom: CGFloat = 5
+    private let maximumZoom: CGFloat = 14
 
     var body: some View {
-        if let mapPage = Self.mapPage {
+        if let mapPage = WorldMapAsset.page {
             ZStack {
                 VectorWorldMap(
                     page: mapPage,
@@ -72,7 +70,12 @@ struct WorldMinimap: View {
     }
 }
 
-private struct VectorWorldMap: View, Animatable {
+enum WorldMapAsset {
+    static let page = Bundle.main.url(forResource: "WorldMap", withExtension: "pdf")
+        .flatMap { CGPDFDocument($0 as CFURL)?.page(at: 1) }
+}
+
+struct VectorWorldMap: View, Animatable {
     let page: CGPDFPage
     var zoom: CGFloat
     var offset: CGSize
@@ -110,6 +113,73 @@ enum WorldMapProjection {
         return CGPoint(
             x: (longitude + 180) / 360 * size.width,
             y: (90 - latitude) / 180 * size.height
+        )
+    }
+
+    static func coordinate(for point: CGPoint, in size: CGSize) -> PhotoCoordinate {
+        PhotoCoordinate(
+            latitude: 90 - min(size.height, max(0, point.y)) / size.height * 180,
+            longitude: min(size.width, max(0, point.x)) / size.width * 360 - 180
+        )
+    }
+
+    static func offset(
+        centeredAt center: PhotoCoordinate,
+        zoom: CGFloat,
+        in size: CGSize
+    ) -> CGSize {
+        let zoom = max(1, zoom)
+        let centerPoint = point(for: center, in: size)
+        return CGSize(
+            width: min(0, max(size.width * (1 - zoom), size.width / 2 - centerPoint.x * zoom)),
+            height: min(0, max(size.height * (1 - zoom), size.height / 2 - centerPoint.y * zoom))
+        )
+    }
+
+    static func displayedPoint(
+        for coordinate: PhotoCoordinate,
+        centeredAt center: PhotoCoordinate,
+        zoom: CGFloat,
+        in size: CGSize
+    ) -> CGPoint {
+        let zoom = max(1, zoom)
+        let mapOffset = offset(centeredAt: center, zoom: zoom, in: size)
+        let mapPoint = point(for: coordinate, in: size)
+        return CGPoint(
+            x: mapPoint.x * zoom + mapOffset.width,
+            y: mapPoint.y * zoom + mapOffset.height
+        )
+    }
+
+    static func coordinate(
+        forDisplayedPoint point: CGPoint,
+        centeredAt center: PhotoCoordinate,
+        zoom: CGFloat,
+        in size: CGSize
+    ) -> PhotoCoordinate {
+        let zoom = max(1, zoom)
+        let mapOffset = offset(centeredAt: center, zoom: zoom, in: size)
+        return coordinate(
+            for: CGPoint(
+                x: (point.x - mapOffset.width) / zoom,
+                y: (point.y - mapOffset.height) / zoom
+            ),
+            in: size
+        )
+    }
+
+    static func radiusSize(
+        kilometers: Double,
+        at coordinate: PhotoCoordinate,
+        zoom: CGFloat,
+        in size: CGSize
+    ) -> CGSize {
+        let latitudeRadians = coordinate.latitude * .pi / 180
+        let kilometersPerLongitudeDegree = 111.32 * max(0.01, cos(latitudeRadians))
+        let diameter = max(0, kilometers) * 2
+        return CGSize(
+            width: CGFloat(diameter / kilometersPerLongitudeDegree / 360) * size.width * max(1, zoom),
+            height: CGFloat(diameter / 111.32 / 180) * size.height * max(1, zoom)
         )
     }
 }

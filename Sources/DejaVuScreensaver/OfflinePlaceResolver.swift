@@ -38,6 +38,17 @@ struct OfflineArea: Decodable {
     }
 }
 
+struct OfflineCitySearchResult: Identifiable, Equatable {
+    let name: String
+    let country: String?
+    let coordinate: PhotoCoordinate
+
+    var id: String { "\(name)|\(coordinate.latitude)|\(coordinate.longitude)" }
+    var subtitle: String {
+        country ?? String(format: "%.4f, %.4f", coordinate.latitude, coordinate.longitude)
+    }
+}
+
 struct OfflinePlaceResolver {
     private static let coordinateScale = 10_000.0
     private static let maximumCityDistance = 30.0
@@ -55,6 +66,10 @@ struct OfflinePlaceResolver {
 
     let database: OfflinePlaceDatabase
 
+    var countryNames: [String] {
+        database.countries.map(\.name).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
     func name(for coordinate: PhotoCoordinate) -> String? {
         guard (-90...90).contains(coordinate.latitude),
               (-180...180).contains(coordinate.longitude) else { return nil }
@@ -70,21 +85,50 @@ struct OfflinePlaceResolver {
         return containingArea(in: database.countries, coordinate: coordinate)?.name
     }
 
+    func countryName(for coordinate: PhotoCoordinate) -> String? {
+        containingArea(in: database.countries, coordinate: coordinate)?.name
+    }
+
+    func isInCountry(named name: String, coordinate: PhotoCoordinate) -> Bool {
+        guard let country = database.countries.first(where: { $0.name == name }) else { return false }
+        return containingArea(in: [country], coordinate: coordinate) != nil
+    }
+
+    func cities(matching query: String, limit: Int = 12) -> [OfflineCitySearchResult] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.count >= 2 else { return [] }
+        return database.cities.lazy
+            .filter { $0.name.localizedCaseInsensitiveContains(query) }
+            .prefix(limit)
+            .map { city in
+                let coordinate = cityCoordinate(for: city)
+                return OfflineCitySearchResult(
+                    name: city.name,
+                    country: countryName(for: coordinate),
+                    coordinate: coordinate
+                )
+            }
+    }
+
     private func nearestCity(to coordinate: PhotoCoordinate) -> (name: String, distance: Double)? {
         var nearest: (name: String, distance: Double)?
         for city in database.cities {
-            let distance = distance(
+            let distance = Self.distance(
                 from: coordinate,
-                to: PhotoCoordinate(
-                    latitude: Double(city.latitude) / Self.coordinateScale,
-                    longitude: Double(city.longitude) / Self.coordinateScale
-                )
+                to: cityCoordinate(for: city)
             )
             if distance < (nearest?.distance ?? .infinity) {
                 nearest = (city.name, distance)
             }
         }
         return nearest
+    }
+
+    private func cityCoordinate(for city: OfflineCity) -> PhotoCoordinate {
+        PhotoCoordinate(
+            latitude: Double(city.latitude) / Self.coordinateScale,
+            longitude: Double(city.longitude) / Self.coordinateScale
+        )
     }
 
     private func containingArea(in areas: [OfflineArea], coordinate: PhotoCoordinate) -> OfflineArea? {
@@ -145,7 +189,7 @@ struct OfflinePlaceResolver {
         return x < (endX - startX) * (y - startY) / (endY - startY) + startX
     }
 
-    private func distance(from start: PhotoCoordinate, to end: PhotoCoordinate) -> Double {
+    static func distance(from start: PhotoCoordinate, to end: PhotoCoordinate) -> Double {
         let radius = 6_371.0
         let startLatitude = start.latitude * .pi / 180
         let endLatitude = end.latitude * .pi / 180

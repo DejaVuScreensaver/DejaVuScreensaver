@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var isShowingAlbumPicker = false
     @State private var isShowingFeedback = false
     @State private var isDatePickerPresented = false
+    @State private var isShowingLocationPicker = false
     @State private var selectedPane: SettingsPane? = .photos
     @State private var selectedPhotoCount: Int?
     let onShowHistory: () -> Void
@@ -73,6 +74,17 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $isShowingAlbumPicker) {
             AlbumPickerView(model: model)
+        }
+        .sheet(isPresented: $isShowingLocationPicker) {
+            LocationCenterPickerView(
+                initialCoordinate: preferences.value.smartFilter.radiusCenter,
+                initialRadiusKilometers: preferences.value.smartFilter.radiusKilometers,
+                initialDistanceUnit: preferences.value.smartFilter.distanceUnit
+            ) { coordinate, radiusKilometers, distanceUnit in
+                preferences.value.smartFilter.radiusCenter = coordinate
+                preferences.value.smartFilter.radiusKilometers = radiusKilometers
+                preferences.value.smartFilter.distanceUnit = distanceUnit
+            }
         }
     }
 
@@ -154,6 +166,45 @@ struct SettingsView: View {
             Toggle("Favorites only", isOn: smartFilterFavoriteBinding)
             Toggle("Only photos with location", isOn: smartFilterLocationBinding)
 
+            Picker("Country", selection: smartFilterCountryBinding) {
+                Text("Any country").tag("")
+                ForEach(OfflinePlaceResolver.shared.countryNames, id: \.self) { country in
+                    Text(country).tag(country)
+                }
+            }
+
+            Toggle("Within a radius", isOn: smartFilterRadiusEnabledBinding)
+            if preferences.value.smartFilter.radiusEnabled {
+                HStack {
+                    Text("Radius")
+                    Spacer(minLength: 24)
+                    TextField(
+                        "Radius",
+                        value: smartFilterRadiusBinding,
+                        format: .number.precision(.fractionLength(0...2))
+                    )
+                    .frame(width: 72)
+                    .labelsHidden()
+                    .multilineTextAlignment(.trailing)
+                    Picker("Distance unit", selection: smartFilterDistanceUnitBinding) {
+                        ForEach(DistanceUnit.allCases) { unit in
+                            Text(unit.symbol).tag(unit)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 96)
+                    Text("from")
+                        .foregroundStyle(.secondary)
+                    Button {
+                        isShowingLocationPicker = true
+                    } label: {
+                        Label(radiusCenterTitle, systemImage: "mappin")
+                    }
+                    .fixedSize()
+                }
+            }
+
             Toggle("Filter by date captured", isOn: smartFilterDateEnabledBinding)
             if preferences.value.smartFilter.captureDateEnabled {
                 HStack {
@@ -185,7 +236,7 @@ struct SettingsView: View {
             }
         }
         // shortcut: counts on the main actor, like Start does; move off-main if huge libraries stutter.
-        .task(id: preferences.value) {
+        .task(id: photoCountTaskID) {
             selectedPhotoCount = photoLibrary.canReadLibrary
                 ? photoLibrary.fetchImages(
                     from: preferences.value.selectedAlbumIDs,
@@ -384,7 +435,7 @@ struct SettingsView: View {
 
     private var sidebarFooter: some View {
         VStack(spacing: 8) {
-            if let reason = model.startDisabledReason {
+            if let reason = settingsStartDisabledReason {
                 Label(reason, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.orange)
@@ -398,7 +449,7 @@ struct SettingsView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(!model.canStart)
+            .disabled(!canStartFromSettings)
 
             Button {
                 onShowHistory()
@@ -413,6 +464,26 @@ struct SettingsView: View {
         .padding(12)
     }
 
+    private var settingsStartDisabledReason: String? {
+        if let reason = model.startDisabledReason {
+            return reason
+        }
+        return selectedPhotoCount == 0
+            ? "0 photos selected. Choose a source or adjust the filters."
+            : nil
+    }
+
+    private var canStartFromSettings: Bool {
+        model.canStart && (selectedPhotoCount ?? 0) > 0
+    }
+
+    private var photoCountTaskID: PhotoCountTaskID {
+        PhotoCountTaskID(
+            preferences: preferences.value,
+            authorizationStatus: photoLibrary.authorizationStatus
+        )
+    }
+
     private var aboutFooter: some View {
         VStack(spacing: 8) {
             Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"))")
@@ -424,8 +495,7 @@ struct SettingsView: View {
             } label: {
                 Label("Feedback — report a bug or request a feature", systemImage: "bubble.left")
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .buttonStyle(FooterLinkButtonStyle())
             .accessibilityHint("Opens the feedback form")
 
             if let repositoryURL = URL(string: "https://github.com/DejaVuScreensaver/DejaVuScreensaver") {
@@ -435,16 +505,14 @@ struct SettingsView: View {
                         systemImage: "chevron.left.forwardslash.chevron.right"
                     )
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .buttonStyle(FooterLinkButtonStyle())
             }
 
             if let supportURL = URL(string: "https://ko-fi.com/feedpippopizza") {
                 Link(destination: supportURL) {
                     Text("Enjoying the app? Please feed me 🍕")
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .buttonStyle(FooterLinkButtonStyle())
             }
         }
         .font(.callout)
@@ -563,6 +631,48 @@ struct SettingsView: View {
         )
     }
 
+    private var smartFilterCountryBinding: Binding<String> {
+        Binding(
+            get: { preferences.value.smartFilter.countryName ?? "" },
+            set: { preferences.value.smartFilter.countryName = $0.isEmpty ? nil : $0 }
+        )
+    }
+
+    private var smartFilterRadiusEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { preferences.value.smartFilter.radiusEnabled },
+            set: { preferences.value.smartFilter.radiusEnabled = $0 }
+        )
+    }
+
+    private var smartFilterRadiusBinding: Binding<Double> {
+        Binding(
+            get: {
+                preferences.value.smartFilter.distanceUnit.displayedDistance(
+                    forKilometers: preferences.value.smartFilter.radiusKilometers
+                )
+            },
+            set: {
+                let kilometers = preferences.value.smartFilter.distanceUnit
+                    .kilometers(forDisplayedDistance: $0)
+                preferences.value.smartFilter.radiusKilometers = min(20_000, max(1, kilometers))
+            }
+        )
+    }
+
+    private var smartFilterDistanceUnitBinding: Binding<DistanceUnit> {
+        Binding(
+            get: { preferences.value.smartFilter.distanceUnit },
+            set: { preferences.value.smartFilter.distanceUnit = $0 }
+        )
+    }
+
+    private var radiusCenterTitle: String {
+        let coordinate = preferences.value.smartFilter.radiusCenter
+        return OfflinePlaceResolver.shared.name(for: coordinate)
+            ?? String(format: "%.4f, %.4f", coordinate.latitude, coordinate.longitude)
+    }
+
     private var smartFilterDateEnabledBinding: Binding<Bool> {
         Binding(
             get: { preferences.value.smartFilter.captureDateEnabled },
@@ -598,6 +708,26 @@ struct SettingsView: View {
             get: { preferences.value[keyPath: keyPath] },
             set: { preferences.value[keyPath: keyPath] = $0 }
         )
+    }
+}
+
+private struct PhotoCountTaskID: Equatable {
+    let preferences: AppPreferences
+    let authorizationStatus: PHAuthorizationStatus
+}
+
+private struct FooterLinkButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(isHovering ? Color.accentColor : Color.secondary)
+            .underline(isHovering)
+            .opacity(configuration.isPressed ? 0.65 : 1)
+            .onHover { isHovering in
+                self.isHovering = isHovering
+                (isHovering ? NSCursor.pointingHand : NSCursor.arrow).set()
+            }
     }
 }
 

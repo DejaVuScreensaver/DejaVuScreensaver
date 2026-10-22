@@ -313,8 +313,64 @@ final class AppPreferencesTests: XCTestCase {
     func testLocationFilterOnlyAcceptsPhotosWithValidCoordinates() {
         let filter = SmartPhotoFilter(locationEnabled: true)
 
-        XCTAssertTrue(filter.matches(isFavorite: false, captureDate: nil, hasLocation: true))
-        XCTAssertFalse(filter.matches(isFavorite: false, captureDate: nil, hasLocation: false))
+        XCTAssertTrue(filter.matches(
+            isFavorite: false,
+            captureDate: nil,
+            coordinate: PhotoCoordinate(latitude: 0, longitude: 0)
+        ))
+        XCTAssertFalse(filter.matches(isFavorite: false, captureDate: nil))
+    }
+
+    func testRadiusFilterUsesKilometersAndRequiresCoordinates() {
+        let filter = SmartPhotoFilter(
+            radiusEnabled: true,
+            radiusCenter: PhotoCoordinate(latitude: 41.9028, longitude: 12.4964),
+            radiusKilometers: 50
+        )
+
+        XCTAssertTrue(filter.matches(
+            isFavorite: false,
+            captureDate: nil,
+            coordinate: PhotoCoordinate(latitude: 41.8902, longitude: 12.4922)
+        ))
+        XCTAssertFalse(filter.matches(
+            isFavorite: false,
+            captureDate: nil,
+            coordinate: PhotoCoordinate(latitude: 45.4642, longitude: 9.1900)
+        ))
+        XCTAssertFalse(filter.matches(isFavorite: false, captureDate: nil))
+    }
+
+    func testDistanceUnitConvertsWithoutChangingThePhysicalRadius() throws {
+        XCTAssertEqual(
+            DistanceUnit.imperial.displayedDistance(forKilometers: 50),
+            31.0686,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            DistanceUnit.imperial.kilometers(forDisplayedDistance: 31.0686),
+            50,
+            accuracy: 0.001
+        )
+
+        let oldFilter = try JSONDecoder().decode(SmartPhotoFilter.self, from: Data("{}".utf8))
+        XCTAssertEqual(oldFilter.distanceUnit, .metric)
+    }
+
+    func testCountryFilterUsesResolvedCountryMatch() {
+        let filter = SmartPhotoFilter(countryName: "Italy")
+
+        XCTAssertTrue(filter.matches(
+            isFavorite: false,
+            captureDate: nil,
+            coordinate: PhotoCoordinate(latitude: 41.9028, longitude: 12.4964),
+            isInSelectedCountry: true
+        ))
+        XCTAssertFalse(filter.matches(
+            isFavorite: false,
+            captureDate: nil,
+            coordinate: PhotoCoordinate(latitude: 48.8566, longitude: 2.3522)
+        ))
     }
 
     func testDisabledSmartFilterAcceptsEveryPhoto() {
