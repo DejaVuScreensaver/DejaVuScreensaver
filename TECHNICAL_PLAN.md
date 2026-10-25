@@ -104,7 +104,8 @@ account, server, analytics SDK, or upload path.
 
 - Add app icon, onboarding, diagnostics export, and an explicit compatibility
   self-test.
-- Add Sparkle with a signed update feed.
+- Sparkle is integrated with sidebar reminders and signed update archives; publish
+  the feed and archive following README's Software updates section.
 - Sign with Developer ID, enable hardened runtime, notarize, and staple.
 - Publish source, tagged release ZIP, checksum, privacy statement, and known
   compatibility table.

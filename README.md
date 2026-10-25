@@ -114,18 +114,63 @@ makes Mac App Store distribution inappropriate.
 
 Before publishing binaries:
 
-1. Add a proper app icon and Sparkle update feed.
+1. Publish the Sparkle update feed and signed update archive (see below).
 2. Sign with Developer ID and enable hardened runtime.
 3. Notarize and staple the app.
 4. Test Lock Screen handoff on every supported macOS release.
 5. Add UI tests for multi-display changes and Photos permission transitions.
 6. Publish the source, release archive, checksums, and privacy statement.
 
+## Software updates
+
+Sparkle 2 checks for updates automatically (users can disable this in Software
+Update). A new version adds a “Software Update Available” sidebar row with a red
+badge. Scheduled checks never open update windows; users open the update from
+that row or “Check for Updates…” in the menu bar. Sparkle handles download,
+signature verification, installation, and restart after the user confirms.
+Automatic downloads/installation and system profiling are disabled.
+
+The feed is the root `appcast.xml` on the repository's `main` branch, served over
+HTTPS by GitHub. Update ZIPs are hosted on GitHub Releases; no paid update service
+or custom server is required. Users on 0.7.2 and earlier need to install 0.7.3 or
+later manually once before they can receive in-app updates.
+
+The Sparkle private signing key is in the macOS login Keychain under account
+`io.github.dejavuscreensaver.DejaVuScreensaver`. The public key is in
+`Resources/Info.plist`. Back up the private key securely using Sparkle's
+`generate_keys --account io.github.dejavuscreensaver.DejaVuScreensaver -x <secure-path>`;
+never commit the export. Future releases must retain this key or follow Sparkle's
+key rotation procedure.
+
+For each release:
+
+1. Increment both version fields in `Resources/Info.plist` (build numbers must
+   increase), build with Developer ID, notarize and staple the app.
+2. Download the matching [Sparkle 2.10.1 distribution](https://github.com/sparkle-project/Sparkle/releases/tag/2.10.1), then run:
+
+   ```sh
+   SPARKLE_TOOLS_DIR=/path/to/Sparkle/bin ./Scripts/prepare-update.sh
+   ```
+
+3. Upload `build/updates/DejaVuScreensaver-VERSION.zip` to GitHub release
+   `vVERSION`. The script generates a signed enclosure and checks that the
+   Keychain key matches the built app.
+4. Copy `build/updates/appcast.xml` to the repository root and publish it on
+   `main` **after** the ZIP is available. Keep existing feed entries; each item
+   retains its own versioned release URL. The initial empty feed is intentional
+   until a release archive is ready.
+5. Test an update from a previous installed version before announcing it.
+
+Local ad-hoc builds remain available through `build-app.sh`; they do not provide
+Apple's Developer ID/notarization assurances and are not public release builds.
+
 ## Privacy
 
 PhotoKit image data stays on the Mac. DejaVuScreensaver contains no analytics,
-accounts, network service, or upload path. Network access by PhotoKit may occur
-when macOS downloads an iCloud photo selected by the user.
+accounts, or photo upload path. Sparkle connects to GitHub to check for updates
+and downloads updates when requested; GitHub receives standard connection data
+such as the IP address. PhotoKit may access the network when macOS downloads an
+iCloud photo selected by the user.
 
 ## License
 

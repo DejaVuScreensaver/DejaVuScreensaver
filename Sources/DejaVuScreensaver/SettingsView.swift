@@ -5,6 +5,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var softwareUpdate: SoftwareUpdateController
     @ObservedObject private var preferences: PreferencesStore
     @ObservedObject private var photoLibrary: PhotoLibraryService
     @ObservedObject private var viewingHistory: ViewingHistoryStore
@@ -16,8 +17,9 @@ struct SettingsView: View {
     @State private var selectedPhotoCount: Int?
     let onShowHistory: () -> Void
 
-    init(model: AppModel, onShowHistory: @escaping () -> Void) {
+    init(model: AppModel, softwareUpdate: SoftwareUpdateController, onShowHistory: @escaping () -> Void) {
         self.model = model
+        self.softwareUpdate = softwareUpdate
         preferences = model.preferences
         photoLibrary = model.photoLibrary
         viewingHistory = model.viewingHistory
@@ -31,8 +33,27 @@ struct SettingsView: View {
                     .padding(.leading, 4)
                     .padding(.top, 6)
                     .padding(.bottom, 20)
+                if softwareUpdate.availableVersion != nil {
+                    HStack(spacing: 12) {
+                        Text("Software Update\nAvailable")
+                            .font(.body.weight(.medium))
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        Text("1")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 22, height: 22)
+                            .background(.red, in: Circle())
+                            .accessibilityHidden(true)
+                    }
+                    .padding(.leading, 4)
+                    .padding(.vertical, 10)
+                    .tag(SettingsPane.softwareUpdate)
+                    .accessibilityLabel("Software update available")
+                }
                 // Metrics measured from System Settings: 20pt icon, 7pt gap, 32pt row pitch, icon 9pt inside the highlight.
-                ForEach(SettingsPane.allCases) { pane in
+                ForEach(SettingsPane.allCases.filter { $0 != .softwareUpdate || softwareUpdate.availableVersion == nil }) { pane in
                     HStack(spacing: 7) {
                         Image(systemName: pane.systemImage)
                             .font(.system(size: 11, weight: .semibold))
@@ -47,11 +68,11 @@ struct SettingsView: View {
                     .tag(pane)
                 }
             }
-            // The column width modifier alone is ignored in our AppKit-hosted window; min/max frame pins it.
             .frame(minWidth: 250, maxWidth: 250)
-            .navigationSplitViewColumnWidth(250) // fixed, like System Settings
+            .navigationSplitViewColumnWidth(min: 250, ideal: 250, max: 250)
             .toolbar(removing: .sidebarToggle)
             .safeAreaInset(edge: .bottom) { sidebarFooter }
+            .background(FixedSettingsSidebar())
         } detail: {
             // Real toolbar title over a scrolling Form: macOS draws the scroll edge effect, like System Settings.
             Form {
@@ -97,6 +118,54 @@ struct SettingsView: View {
         case .playback: playbackSection
         case .automaticStart: behaviorSection
         case .security: securitySection
+        case .softwareUpdate: softwareUpdateSection
+        }
+    }
+
+    private var softwareUpdateSection: some View {
+        Group {
+            Section {
+                HStack(alignment: .top, spacing: 16) {
+                    Image(systemName: "gearshape.2.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 52, height: 52)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(softwareUpdate.availableVersion.map { "DejaVuScreensaver \($0)" } ?? "DejaVuScreensaver")
+                            .font(.headline)
+                        Text(softwareUpdate.availableVersion == nil
+                             ? "Check for the latest version of DejaVuScreensaver."
+                             : "A new version is available for your Mac.")
+                            .foregroundStyle(.secondary)
+                        Text("Installed version: \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Button(softwareUpdate.availableVersion == nil ? "Check for Updates…" : "Update Now…") {
+                        softwareUpdate.checkForUpdates()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!softwareUpdate.canCheckForUpdates || model.isPresenting || model.lockService.isSessionLocked)
+                }
+                if let error = softwareUpdate.lastError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                        .textSelection(.enabled)
+                }
+            } footer: {
+                if let date = softwareUpdate.lastUpdateCheckDate {
+                    Text("Last checked: \(date.formatted(date: .abbreviated, time: .shortened))")
+                }
+            }
+            Section {
+                Toggle("Automatically check for updates", isOn: Binding(
+                    get: { softwareUpdate.automaticallyChecksForUpdates },
+                    set: { softwareUpdate.setAutomaticallyChecksForUpdates($0) }
+                ))
+            } footer: {
+                Text("New updates appear in the sidebar. Downloads and installation start only when you choose to update; the app will need to restart.")
+            }
         }
     }
 
@@ -736,7 +805,7 @@ private enum ExitBehavior: Hashable {
 }
 
 private enum SettingsPane: CaseIterable, Identifiable {
-    case photos, playback, automaticStart, security
+    case photos, playback, automaticStart, security, softwareUpdate
 
     var id: Self { self }
 
@@ -746,6 +815,7 @@ private enum SettingsPane: CaseIterable, Identifiable {
         case .playback: "Playback"
         case .automaticStart: "Automatic Start"
         case .security: "Lock & Exit"
+        case .softwareUpdate: "Software Update"
         }
     }
 
@@ -755,6 +825,7 @@ private enum SettingsPane: CaseIterable, Identifiable {
         case .playback: "play.fill"
         case .automaticStart: "clock.fill"
         case .security: "lock.fill"
+        case .softwareUpdate: "gearshape.fill"
         }
     }
 
@@ -764,6 +835,7 @@ private enum SettingsPane: CaseIterable, Identifiable {
         case .playback: .green
         case .automaticStart: .indigo
         case .security: .blue
+        case .softwareUpdate: .gray
         }
     }
 }

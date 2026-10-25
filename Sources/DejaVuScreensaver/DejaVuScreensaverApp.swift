@@ -9,6 +9,7 @@ struct DejaVuScreensaverApp: App {
         MenuBarExtra("DejaVuScreensaver", systemImage: "photo.on.rectangle") {
             MenuContent(
                 model: appDelegate.model,
+                softwareUpdate: appDelegate.softwareUpdate,
                 openSettings: { appDelegate.showSettings() },
                 openHistory: { appDelegate.showHistory() }
             )
@@ -19,10 +20,12 @@ struct DejaVuScreensaverApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = AppModel()
+    let softwareUpdate = SoftwareUpdateController()
     private var settingsWindow: NSWindow?
     private var historyWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        softwareUpdate.start()
         model.onUnlockAfterSlideshow = { [weak self] in self?.showSettings() }
         showSettings()
     }
@@ -48,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let hostingController = NSHostingController(
                 rootView: SettingsView(
                     model: model,
+                    softwareUpdate: softwareUpdate,
                     onShowHistory: { [weak self] in self?.showHistory() }
                 )
             )
@@ -94,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 private struct MenuContent: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var softwareUpdate: SoftwareUpdateController
     let openSettings: () -> Void
     let openHistory: () -> Void
 
@@ -110,6 +115,11 @@ private struct MenuContent: View {
         Button("Recently Viewed…") {
             openHistory()
         }
+
+        Button(softwareUpdate.availableVersion == nil ? "Check for Updates…" : "Update Available…") {
+            softwareUpdate.checkForUpdates()
+        }
+        .disabled(!softwareUpdate.canCheckForUpdates || model.isPresenting || model.lockService.isSessionLocked)
 
         Divider()
 

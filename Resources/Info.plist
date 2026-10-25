@@ -17,9 +17,21 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.7.2</string>
+    <string>0.7.3</string>
     <key>CFBundleVersion</key>
-    <string>29</string>
+    <string>31</string>
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/DejaVuScreensaver/DejaVuScreensaver/main/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>ZYt3B7eV21fO7j0OZ3NlFPglgEzllxK91ekQ7MnZaVs=</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUAutomaticallyUpdate</key>
+    <false/>
+    <key>SUAllowsAutomaticUpdates</key>
+    <false/>
+    <key>SUEnableSystemProfiling</key>
+    <false/>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>

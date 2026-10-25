@@ -8,9 +8,13 @@ let package = Package(
     products: [
         .executable(name: "DejaVuScreensaver", targets: ["DejaVuScreensaver"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.1"),
+    ],
     targets: [
         .executableTarget(
             name: "DejaVuScreensaver",
+            dependencies: [.product(name: "Sparkle", package: "Sparkle")],
             path: "Sources/DejaVuScreensaver",
             linkerSettings: [
                 .linkedFramework("AppKit"),
@@ -20,6 +24,7 @@ let package = Package(
                 .linkedFramework("Photos"),
                 .linkedFramework("ServiceManagement"),
                 .linkedLibrary("dl"),
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"]),
             ]
         ),
         .testTarget(
