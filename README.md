@@ -157,8 +157,7 @@ For each release:
    Keychain key matches the built app.
 4. Copy `build/updates/appcast.xml` to the repository root and publish it on
    `main` **after** the ZIP is available. Keep existing feed entries; each item
-   retains its own versioned release URL. The initial empty feed is intentional
-   until a release archive is ready.
+   retains its own versioned release URL.
 5. Test an update from a previous installed version before announcing it.
 
 Local ad-hoc builds remain available through `build-app.sh`; they do not provide
