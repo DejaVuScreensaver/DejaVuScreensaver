@@ -577,7 +577,7 @@ struct SettingsView: View {
                 .buttonStyle(FooterLinkButtonStyle())
             }
 
-            if let supportURL = URL(string: "https://ko-fi.com/feedpippopizza") {
+            if let supportURL = URL(string: "https://ko-fi.com/feedpietropizza") {
                 Link(destination: supportURL) {
                     Text("Enjoying the app? Please feed me 🍕")
                 }
