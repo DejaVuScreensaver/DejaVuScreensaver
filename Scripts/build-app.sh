@@ -19,6 +19,11 @@ BIN_DIR="$(swift build "${SWIFT_BUILD_ARGS[@]}" --show-bin-path)"
 SPARKLE_FRAMEWORK="${PROJECT_DIR}/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
 [[ -d "${SPARKLE_FRAMEWORK}" ]] || { echo "Sparkle framework not found; run swift package resolve." >&2; exit 1; }
 
+# Replacing a running bundle breaks its code identity and Sparkle authorization.
+if /usr/sbin/lsof -t "${APP_PATH}/Contents/MacOS/DejaVuScreensaver" >/dev/null 2>&1; then
+  echo "Quit ${APP_PATH} before rebuilding it; the running app must not be replaced." >&2
+  exit 1
+fi
 rm -rf "${APP_PATH}"
 mkdir -p "${APP_PATH}/Contents/MacOS" "${APP_PATH}/Contents/Resources" "${APP_PATH}/Contents/Frameworks"
 ditto "${SPARKLE_FRAMEWORK}" "${APP_PATH}/Contents/Frameworks/Sparkle.framework"
