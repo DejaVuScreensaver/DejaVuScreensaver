@@ -38,9 +38,32 @@ final class SoftwareUpdateControllerTests: XCTestCase {
                 userInfo: [NSLocalizedDescriptionKey: "The Internet connection appears to be offline."]
             ))
             XCTAssertEqual(subject.lastError, "The Internet connection appears to be offline.")
+            XCTAssertFalse(subject.isUpToDate)
             subject.updaterDidNotFindUpdate(updater)
             XCTAssertNil(subject.lastError)
             XCTAssertNil(subject.availableVersion)
+            XCTAssertTrue(subject.isUpToDate)
+        }
+    }
+
+    func testNoUpdateCallbackIsSuccessAndSubsequentFailureClearsIt() async {
+        await MainActor.run {
+            let subject = SoftwareUpdateController()
+            let updater = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil).updater
+            subject.updaterDidNotFindUpdate(updater)
+            // Sparkle also ends the no-update session through its error callback.
+            subject.updater(updater, didAbortWithError: NSError(
+                domain: SUSparkleErrorDomain, code: Int(SUError.noUpdateError.rawValue),
+                userInfo: [NSLocalizedDescriptionKey: "You’re up to date!"]
+            ))
+            XCTAssertTrue(subject.isUpToDate)
+            XCTAssertNil(subject.lastError)
+
+            subject.updater(updater, didAbortWithError: NSError(
+                domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet
+            ))
+            XCTAssertFalse(subject.isUpToDate)
+            XCTAssertNotNil(subject.lastError)
         }
     }
 }

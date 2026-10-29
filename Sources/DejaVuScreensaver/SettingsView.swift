@@ -148,7 +148,11 @@ struct SettingsView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(!softwareUpdate.canCheckForUpdates || model.isPresenting || model.lockService.isSessionLocked)
                 }
-                if let error = softwareUpdate.lastError {
+                if softwareUpdate.isUpToDate {
+                    Label("You’re up to date!", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .textSelection(.enabled)
+                } else if let error = softwareUpdate.lastError {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                         .textSelection(.enabled)

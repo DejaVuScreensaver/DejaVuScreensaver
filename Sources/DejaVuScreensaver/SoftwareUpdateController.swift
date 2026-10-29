@@ -8,6 +8,7 @@ final class SoftwareUpdateController: NSObject, ObservableObject, SPUUpdaterDele
     @Published private(set) var automaticallyChecksForUpdates = false
     @Published private(set) var lastUpdateCheckDate: Date?
     @Published private(set) var lastError: String?
+    @Published private(set) var isUpToDate = false
 
     private var controller: SPUStandardUpdaterController!
 
@@ -33,6 +34,7 @@ final class SoftwareUpdateController: NSObject, ObservableObject, SPUUpdaterDele
     func checkForUpdates() {
         guard canCheckForUpdates else { return }
         lastError = nil
+        isUpToDate = false
         controller.checkForUpdates(nil)
     }
 
@@ -58,6 +60,7 @@ final class SoftwareUpdateController: NSObject, ObservableObject, SPUUpdaterDele
         MainActor.assumeIsolated {
             availableVersion = update.displayVersionString
             lastError = nil
+            isUpToDate = false
         }
     }
 
@@ -68,14 +71,18 @@ final class SoftwareUpdateController: NSObject, ObservableObject, SPUUpdaterDele
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
         availableVersion = item.displayVersionString
         lastError = nil
+        isUpToDate = false
     }
 
     func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
         availableVersion = nil
         lastError = nil
+        isUpToDate = true
     }
 
     func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        lastError = error.localizedDescription
+        let error = error as NSError
+        isUpToDate = error.domain == SUSparkleErrorDomain && error.code == Int(SUError.noUpdateError.rawValue)
+        lastError = isUpToDate ? nil : error.localizedDescription
     }
 }
